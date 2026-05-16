@@ -55,6 +55,12 @@ jobs:
       - name: Build macOS app
         run: pyinstaller ChineseDict_macOS.spec --noconfirm
 
+      - name: Ad-hoc code sign
+        run: codesign --force --deep --sign - dist/ChineseDict.app
+
+      - name: Verify code sign
+        run: codesign --verify --verbose dist/ChineseDict.app
+
       - name: Create DMG (optional)
         run: |
           cd dist
