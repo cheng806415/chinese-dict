@@ -1,11 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_all
 
-hiddenimports = ['sip']
-hiddenimports += collect_submodules('PyQt5.QtWidgets')
-hiddenimports += collect_submodules('PyQt5.QtCore')
-hiddenimports += collect_submodules('PyQt5.QtGui')
+hiddenimports = [
+    'sip',
+    'PyQt5',
+    'PyQt5.sip',
+    'PyQt5.QtWidgets',
+    'PyQt5.QtCore',
+    'PyQt5.QtGui',
+]
+
+pyqt5_binaries, pyqt5_datas, pyqt5_hiddenimports = collect_all('PyQt5')
+hiddenimports += pyqt5_hiddenimports
 
 excludes = [
     'PyQt6',
