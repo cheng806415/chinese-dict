@@ -2,7 +2,7 @@ from src.utils.qt_compat import (
     QWidget, QHBoxLayout, QLineEdit, QPushButton, QListWidget,
     QListWidgetItem, QVBoxLayout, QFrame, QLabel,
     Qt, pyqtSignal, QTimer, QFont, QKeySequence,
-    FONT_WEIGHT_BOLD, KEY_RETURN, KEY_ENTER
+    FONT_WEIGHT_BOLD, KEY_RETURN, KEY_ENTER, USER_ROLE
 )
 from src.utils.font import get_font
 
@@ -115,7 +115,7 @@ class SearchBar(QWidget):
                 pinyin = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else ""
                 display_text = f"{word}  ({pinyin})" if pinyin else word
                 list_item = QListWidgetItem(display_text)
-                list_item.setData(Qt.UserRole, word)
+                list_item.setData(USER_ROLE, word)
                 self.suggestion_list.addItem(list_item)
             self.suggestion_list.setVisible(True)
             self.suggestion_list.setMaximumHeight(min(len(suggestions) * 40, 200))
@@ -123,7 +123,7 @@ class SearchBar(QWidget):
             self.suggestion_list.setVisible(False)
     
     def _on_suggestion_selected(self, item):
-        word = item.data(Qt.UserRole)
+        word = item.data(USER_ROLE)
         if word:
             self.search_input.setText(word)
             self.suggestion_list.setVisible(False)

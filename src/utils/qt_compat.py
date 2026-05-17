@@ -1,95 +1,40 @@
 import sys
 
-USE_PYQT5 = False
+USE_PYQT5 = sys.platform == 'darwin' and getattr(sys, 'frozen', False)
 
-try:
-    from PyQt6.QtWidgets import QApplication
-    USE_PYQT5 = False
-except ImportError:
-    from PyQt5.QtWidgets import QApplication
-    USE_PYQT5 = True
+if USE_PYQT5:
+    from PyQt5.QtWidgets import (
+        QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+        QTextEdit, QLabel, QSplitter, QListWidget, QListWidgetItem,
+        QPushButton, QFrame, QScrollArea, QLineEdit, QMessageBox,
+    )
+    from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+    from PyQt5.QtGui import QFont, QKeySequence, QTextCursor
 
+    ALIGN_CENTER = Qt.AlignCenter
+    ALIGN_LEFT = Qt.AlignLeft
+    ALIGN_RIGHT = Qt.AlignRight
+    FONT_WEIGHT_BOLD = QFont.Bold
+    MSG_ICON_CRITICAL = QMessageBox.Critical
+    KEY_RETURN = Qt.Key_Return
+    KEY_ENTER = Qt.Key_Enter
+    WORD_UNDER_CURSOR = QTextCursor.WordUnderCursor
+    USER_ROLE = Qt.UserRole
+else:
+    from PyQt6.QtWidgets import (
+        QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+        QTextEdit, QLabel, QSplitter, QListWidget, QListWidgetItem,
+        QPushButton, QFrame, QScrollArea, QLineEdit, QMessageBox,
+    )
+    from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+    from PyQt6.QtGui import QFont, QKeySequence, QTextCursor
 
-def import_qt(module_name):
-    if USE_PYQT5:
-        return __import__(f'PyQt5.{module_name}', fromlist=['*'])
-    return __import__(f'PyQt6.{module_name}', fromlist=['*'])
-
-
-QtWidgets = import_qt('QtWidgets')
-QtCore = import_qt('QtCore')
-QtGui = import_qt('QtGui')
-
-QApplication = QtWidgets.QApplication
-QMainWindow = QtWidgets.QMainWindow
-QWidget = QtWidgets.QWidget
-QVBoxLayout = QtWidgets.QVBoxLayout
-QHBoxLayout = QtWidgets.QHBoxLayout
-QTextEdit = QtWidgets.QTextEdit
-QLabel = QtWidgets.QLabel
-QSplitter = QtWidgets.QSplitter
-QListWidget = QtWidgets.QListWidget
-QListWidgetItem = QtWidgets.QListWidgetItem
-QPushButton = QtWidgets.QPushButton
-QFrame = QtWidgets.QFrame
-QScrollArea = QtWidgets.QScrollArea
-QLineEdit = QtWidgets.QLineEdit
-QMessageBox = QtWidgets.QMessageBox
-
-Qt = QtCore.Qt
-pyqtSignal = QtCore.pyqtSignal
-QTimer = QtCore.QTimer
-QTextCursor = QtGui.QTextCursor
-QFont = QtGui.QFont
-QKeySequence = QtGui.QKeySequence
-
-
-def _align_center():
-    if USE_PYQT5:
-        return Qt.AlignCenter
-    return Qt.AlignmentFlag.AlignCenter
-
-
-def _align_left():
-    if USE_PYQT5:
-        return Qt.AlignLeft
-    return Qt.AlignmentFlag.AlignLeft
-
-
-def _align_right():
-    if USE_PYQT5:
-        return Qt.AlignRight
-    return Qt.AlignmentFlag.AlignRight
-
-
-def _font_weight_bold():
-    if USE_PYQT5:
-        return QFont.Bold
-    return QFont.Weight.Bold
-
-
-def _msg_icon_critical():
-    if USE_PYQT5:
-        return QMessageBox.Critical
-    return QMessageBox.Icon.Critical
-
-
-def _key_return():
-    if USE_PYQT5:
-        return Qt.Key_Return
-    return Qt.Key.Key_Return
-
-
-def _key_enter():
-    if USE_PYQT5:
-        return Qt.Key_Enter
-    return Qt.Key.Key_Enter
-
-
-ALIGN_CENTER = _align_center()
-ALIGN_LEFT = _align_left()
-ALIGN_RIGHT = _align_right()
-FONT_WEIGHT_BOLD = _font_weight_bold()
-MSG_ICON_CRITICAL = _msg_icon_critical()
-KEY_RETURN = _key_return()
-KEY_ENTER = _key_enter()
+    ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter
+    ALIGN_LEFT = Qt.AlignmentFlag.AlignLeft
+    ALIGN_RIGHT = Qt.AlignmentFlag.AlignRight
+    FONT_WEIGHT_BOLD = QFont.Weight.Bold
+    MSG_ICON_CRITICAL = QMessageBox.Icon.Critical
+    KEY_RETURN = Qt.Key.Key_Return
+    KEY_ENTER = Qt.Key.Key_Enter
+    WORD_UNDER_CURSOR = QTextCursor.SelectionType.WordUnderCursor
+    USER_ROLE = Qt.ItemDataRole.UserRole

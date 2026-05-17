@@ -2,7 +2,7 @@ from src.utils.qt_compat import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit,
     QLabel, QSplitter, QListWidget, QListWidgetItem, QPushButton,
     QFrame, QScrollArea, Qt, pyqtSignal, QFont, QTextCursor,
-    FONT_WEIGHT_BOLD, ALIGN_CENTER
+    FONT_WEIGHT_BOLD, ALIGN_CENTER, WORD_UNDER_CURSOR
 )
 from src.ui.search_bar import SearchBar
 from src.utils.font import get_font, get_css_font_family
@@ -28,7 +28,7 @@ class SearchResultView(QTextEdit):
     def mousePressEvent(self, event):
         try:
             cursor = self.cursorForPosition(event.pos())
-            cursor.select(QTextCursor.WordUnderCursor)
+            cursor.select(WORD_UNDER_CURSOR)
             word = cursor.selectedText()
             if word in ("☆", "★"):
                 if self.current_word_id is not None:
