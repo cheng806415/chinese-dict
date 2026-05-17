@@ -55,13 +55,7 @@ jobs:
       - name: Build macOS app
         run: pyinstaller ChineseDict_macOS.spec --noconfirm
 
-      - name: Ad-hoc code sign
-        run: codesign --force --sign - dist/ChineseDict.app
-
-      - name: Verify code sign
-        run: codesign --verify --verbose dist/ChineseDict.app || echo "Code sign verification skipped for nested frameworks"
-
-      - name: Create DMG (optional)
+      - name: Create DMG
         run: |
           cd dist
           mkdir -p dmg_temp
