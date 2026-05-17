@@ -19,19 +19,34 @@ class SearchResultView(QTextEdit):
         super().__init__(parent)
         self.setReadOnly(True)
         self.setFont(get_font(11))
-        self.setStyleSheet("""
-            QTextEdit {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 6px;
-                padding: 12px;
-            }
-        """)
+        self._update_style(False)
         self.setPlaceholderText("输入词汇进行查询...")
         self.current_word_id = None
         self._word = ""
         self._pinyin = ""
         self._definition = ""
+
+    def _update_style(self, is_dark):
+        if is_dark:
+            self.setStyleSheet("""
+                QTextEdit {
+                    background-color: #1e1e1e;
+                    color: #e0e0e0;
+                    border: 1px solid #444;
+                    border-radius: 6px;
+                    padding: 12px;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                QTextEdit {
+                    background-color: #f8f9fa;
+                    color: #333;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    padding: 12px;
+                }
+            """)
 
     def set_content(self, word, pinyin, definition):
         self._word = word or ""
@@ -560,11 +575,17 @@ class MainWindow(QMainWindow):
         self.theme_btn.setChecked(is_dark)
         self.theme_action.setChecked(is_dark)
 
+        # Update main window background
+        if is_dark:
+            self.setStyleSheet("QMainWindow { background-color: #2b2b2b; }")
+        else:
+            self.setStyleSheet("QMainWindow { background-color: #ffffff; }")
+
         self.favorite_widget.update_theme(self.theme_manager)
         self.history_widget.update_theme(self.theme_manager)
         self.word_book_widget.update_theme(self.theme_manager)
         self.search_bar.setStyleSheet(self._search_bar_qss())
-        self.search_result_view.setStyleSheet(self._result_view_qss())
+        self.search_result_view._update_style(is_dark)
         self.refresh_display()
 
     def show_daily_word(self, word_data):

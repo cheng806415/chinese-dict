@@ -261,50 +261,39 @@ class DatabaseManager:
         like_pattern = f'%{word}%'
         norm_word = pinyin_normalize(word)
         norm_like = f'%{norm_word}%'
-
         initials = get_initials(word)
         norm_initials = get_initials(norm_word)
 
-        fuzzy_pinyin_like = _build_fuzzy_pinyin_like(word)
-        fuzzy_norm_like = _build_fuzzy_pinyin_like(norm_word)
-
-        queries = []
-        params = []
-
+        # Use a single OR query instead of UNION for speed
         if initials and len(initials) >= 2:
-            queries.append('''
-                SELECT * FROM words
-                WHERE simplified LIKE ? OR traditional LIKE ?
-                  OR pinyin LIKE ? OR pinyin LIKE ?
-                  OR pinyin LIKE ? OR pinyin LIKE ?
-                  OR pinyin_initials LIKE ? OR pinyin_initials LIKE ?
-            ''')
-            params.extend([
-                like_pattern, like_pattern,
-                like_pattern, norm_like,
-                fuzzy_pinyin_like, fuzzy_norm_like,
-                f'{initials}%', f'{norm_initials}%'
-            ])
+            self.cursor.execute(
+                '''SELECT * FROM words
+                   WHERE simplified LIKE ? OR traditional LIKE ?
+                      OR pinyin LIKE ? OR pinyin LIKE ?
+                      OR pinyin_initials LIKE ? OR pinyin_initials LIKE ?
+                   LIMIT ?''',
+                (like_pattern, like_pattern, like_pattern, norm_like,
+                 f'{initials}%', f'{norm_initials}%', limit * 3)
+            )
         else:
-            queries.append('''
-                SELECT * FROM words
-                WHERE simplified LIKE ? OR traditional LIKE ?
-                  OR pinyin LIKE ? OR pinyin LIKE ?
-                  OR pinyin LIKE ? OR pinyin LIKE ?
-            ''')
-            params.extend([
-                like_pattern, like_pattern,
-                like_pattern, norm_like,
-                fuzzy_pinyin_like, fuzzy_norm_like,
-            ])
+            self.cursor.execute(
+                '''SELECT * FROM words
+                   WHERE simplified LIKE ? OR traditional LIKE ?
+                      OR pinyin LIKE ? OR pinyin LIKE ?
+                   LIMIT ?''',
+                (like_pattern, like_pattern, like_pattern, norm_like, limit * 3)
+            )
 
-        sql = 'SELECT DISTINCT * FROM (' + ' UNION '.join(queries) + ')'
-        self.cursor.execute(sql, tuple(params))
         rows = self.cursor.fetchall()
 
         results = []
+        seen = set()
         for row in rows:
             rd = dict(row)
+            wid = rd.get('id')
+            if wid in seen:
+                continue
+            seen.add(wid)
             rd['pinyin'] = format_pinyin(rd.get('pinyin', ''))
             results.append(rd)
 
@@ -314,7 +303,6 @@ class DatabaseManager:
         def rank_score(r):
             simp = r.get('simplified', '') or ''
             trad = r.get('traditional', '') or ''
-            py = r.get('pinyin', '') or ''
             py_raw = r.get('pinyin', '') or ''
             pi = r.get('pinyin_initials', '') or ''
 
@@ -332,27 +320,22 @@ class DatabaseManager:
                 return (3, 0)
             if norm_q_stripped and py_stripped == norm_q_stripped:
                 return (3, 0)
-
             if q_stripped and py_stripped.startswith(q_stripped):
                 return (4, 0)
             if norm_q_stripped and py_stripped.startswith(norm_q_stripped):
                 return (4, 0)
-
             if q_stripped and q_stripped in py_stripped:
                 return (5, 0)
             if norm_q_stripped and norm_q_stripped in py_stripped:
                 return (5, 0)
-
             if fuzzy_match_pinyin(word, py_raw):
                 return (6, 0)
             if fuzzy_match_pinyin(norm_word, py_raw):
                 return (6, 0)
-
             if initials and pi.startswith(initials):
                 return (7, 0)
             if norm_initials and pi.startswith(norm_initials):
                 return (7, 0)
-
             return (8, 0)
 
         results.sort(key=rank_score)
@@ -365,43 +348,26 @@ class DatabaseManager:
         like_pattern = f'{prefix}%'
         norm_prefix = pinyin_normalize(prefix)
         norm_like = f'{norm_prefix}%'
-
         initials = get_initials(prefix)
         norm_initials = get_initials(norm_prefix)
 
-        fuzzy_pinyin_like = _build_fuzzy_pinyin_like(prefix)
-        fuzzy_norm_like = _build_fuzzy_pinyin_like(norm_prefix)
-
-        queries = []
-        params = []
-
         if initials and len(initials) >= 2:
-            queries.append('''
-                SELECT simplified, pinyin FROM words
-                WHERE simplified LIKE ? OR pinyin LIKE ? OR pinyin LIKE ?
-                  OR pinyin LIKE ? OR pinyin LIKE ?
-                  OR pinyin_initials LIKE ? OR pinyin_initials LIKE ?
-            ''')
-            params.extend([
-                like_pattern, like_pattern, norm_like,
-                fuzzy_pinyin_like, fuzzy_norm_like,
-                f'{initials}%', f'{norm_initials}%'
-            ])
+            self.cursor.execute(
+                '''SELECT DISTINCT simplified, pinyin FROM words
+                   WHERE simplified LIKE ? OR pinyin LIKE ? OR pinyin LIKE ?
+                      OR pinyin_initials LIKE ? OR pinyin_initials LIKE ?
+                   LIMIT ?''',
+                (like_pattern, like_pattern, norm_like,
+                 f'{initials}%', f'{norm_initials}%', limit)
+            )
         else:
-            queries.append('''
-                SELECT simplified, pinyin FROM words
-                WHERE simplified LIKE ? OR pinyin LIKE ? OR pinyin LIKE ?
-                  OR pinyin LIKE ? OR pinyin LIKE ?
-            ''')
-            params.extend([
-                like_pattern, like_pattern, norm_like,
-                fuzzy_pinyin_like, fuzzy_norm_like,
-            ])
+            self.cursor.execute(
+                '''SELECT DISTINCT simplified, pinyin FROM words
+                   WHERE simplified LIKE ? OR pinyin LIKE ? OR pinyin LIKE ?
+                   LIMIT ?''',
+                (like_pattern, like_pattern, norm_like, limit)
+            )
 
-        sql = 'SELECT DISTINCT * FROM (' + ' UNION '.join(queries) + ') LIMIT ?'
-        params.append(limit)
-
-        self.cursor.execute(sql, tuple(params))
         return [(row[0], format_pinyin(row[1])) for row in self.cursor.fetchall()]
 
     def search_by_radical(self, radical, limit=50):
