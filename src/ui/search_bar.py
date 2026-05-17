@@ -89,6 +89,7 @@ class SearchBar(QWidget):
         self.debounce_timer = QTimer(self)
         self.debounce_timer.setSingleShot(True)
         self.debounce_timer.timeout.connect(self._request_suggestions)
+        self._last_suggestions = []
         
         self.suggestions_callback = None
     
@@ -97,7 +98,7 @@ class SearchBar(QWidget):
     
     def _on_text_changed(self, text):
         if text.strip():
-            self.debounce_timer.start(300)
+            self.debounce_timer.start(150)
         else:
             self.suggestion_list.setVisible(False)
     
@@ -108,6 +109,11 @@ class SearchBar(QWidget):
             self._update_suggestions(suggestions)
     
     def _update_suggestions(self, suggestions):
+        # Avoid redundant UI updates if suggestions haven't changed
+        if suggestions == self._last_suggestions:
+            return
+        self._last_suggestions = suggestions
+
         self.suggestion_list.clear()
         if suggestions:
             for item in suggestions:
