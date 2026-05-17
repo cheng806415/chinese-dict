@@ -42,6 +42,19 @@ def get_version_file():
 def get_bundled_db_path():
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS
+        db_path = os.path.join(base_path, "data", "dictionary.db")
+        if os.path.exists(db_path):
+            return db_path
+        if sys.platform == 'darwin':
+            exe_dir = os.path.dirname(sys.executable)
+            alt_path = os.path.join(exe_dir, "data", "dictionary.db")
+            if os.path.exists(alt_path):
+                return alt_path
+            resources_dir = os.path.join(os.path.dirname(exe_dir), "Resources")
+            alt_path2 = os.path.join(resources_dir, "data", "dictionary.db")
+            if os.path.exists(alt_path2):
+                return alt_path2
+        return db_path
     else:
         base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return os.path.join(base_path, "data", "dictionary.db")

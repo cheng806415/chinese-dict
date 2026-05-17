@@ -163,6 +163,17 @@ class DictionaryApp:
 
 def main():
     sys.excepthook = global_exception_handler
+    if getattr(sys, 'frozen', False) and sys.platform == 'darwin':
+        log_dir = os.path.expanduser('~/Library/Logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'ChineseDict.log')
+        sys.stdout = open(log_path, 'a', encoding='utf-8')
+        sys.stderr = sys.stdout
+        print(f"=== ChineseDict started at {__import__('datetime').datetime.now()} ===")
+        print(f"Python: {sys.version}")
+        print(f"Executable: {sys.executable}")
+        print(f"_MEIPASS: {getattr(sys, '_MEIPASS', 'N/A')}")
+        print(f"frozen: {getattr(sys, 'frozen', False)}")
     app = DictionaryApp()
     app.run()
 
