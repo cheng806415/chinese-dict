@@ -2,7 +2,7 @@
 import os
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports = []
+hiddenimports = ['sip']
 hiddenimports += collect_submodules('PyQt5.QtWidgets')
 hiddenimports += collect_submodules('PyQt5.QtCore')
 hiddenimports += collect_submodules('PyQt5.QtGui')

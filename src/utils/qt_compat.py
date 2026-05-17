@@ -1,6 +1,6 @@
 import sys
 
-USE_PYQT5 = sys.platform == 'darwin' and getattr(sys, 'frozen', False)
+USE_PYQT5 = sys.platform == 'darwin'
 
 if USE_PYQT5:
     from PyQt5.QtWidgets import (
