@@ -85,7 +85,12 @@ class DictionaryApp:
         db_path = import_data()
         self.db = DatabaseManager(db_path)
         self._load_settings()
-        self.show_main_window()
+        self._setup_main_window_connections()
+        self.load_favorites()
+        self.load_history()
+        self.load_word_book()
+        self.main_window.set_loading(False)
+        self._check_update()
 
     def _load_settings(self):
         try:
@@ -110,8 +115,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error saving settings: {e}")
 
-    def show_main_window(self):
-        self.main_window = MainWindow(self.theme_manager)
+    def _setup_main_window_connections(self):
         self.main_window.search_requested.connect(self.on_search)
         self.main_window.search_bar.set_suggestions_callback(self.get_suggestions)
         self.main_window.search_result_view.toggle_favorite.connect(self.on_toggle_favorite)
@@ -119,14 +123,8 @@ class DictionaryApp:
         self.main_window.quiz_requested.connect(self.on_quiz)
         self.main_window.review_requested.connect(self.on_review)
         self.main_window.word_book_toggle_requested.connect(self.on_toggle_word_book)
-
-        self.load_favorites()
-        self.load_history()
-        self.load_word_book()
-
-        self.main_window.set_loading(False)
-        self.main_window.show()
-        self._check_update()
+        self.main_window.export_requested.connect(self.on_export)
+        self.main_window.print_requested.connect(self.on_print)
 
     def _delayed_init(self):
         self.main_window.set_loading(True)
@@ -284,15 +282,7 @@ class DictionaryApp:
     def run(self):
         try:
             self.main_window = MainWindow(self.theme_manager)
-            self.main_window.search_requested.connect(self.on_search)
-            self.main_window.search_bar.set_suggestions_callback(self.get_suggestions)
-            self.main_window.search_result_view.toggle_favorite.connect(self.on_toggle_favorite)
-            self.main_window.daily_word_requested.connect(self.on_daily_word)
-            self.main_window.quiz_requested.connect(self.on_quiz)
-            self.main_window.review_requested.connect(self.on_review)
-            self.main_window.word_book_toggle_requested.connect(self.on_toggle_word_book)
-            self.main_window.export_requested.connect(self.on_export)
-            self.main_window.print_requested.connect(self.on_print)
+            self._setup_main_window_connections()
 
             self.export_manager = ExportManager(self.db, self.main_window)
 

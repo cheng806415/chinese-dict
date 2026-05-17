@@ -586,7 +586,24 @@ class MainWindow(QMainWindow):
         self.word_book_widget.update_theme(self.theme_manager)
         self.search_bar.setStyleSheet(self._search_bar_qss())
         self.search_result_view._update_style(is_dark)
+        self._update_all_fonts()
         self.refresh_display()
+
+    def _update_all_fonts(self):
+        tm = self.theme_manager
+        self.setFont(get_font(tm.get_font_size(11)))
+        self.search_bar.search_input.setFont(get_font(tm.get_font_size(12)))
+        self.search_bar.search_button.setFont(get_font(tm.get_font_size(12), FONT_WEIGHT_BOLD))
+        self.daily_word_btn.setFont(get_font(tm.get_font_size(10), FONT_WEIGHT_BOLD))
+        self.quiz_btn.setFont(get_font(tm.get_font_size(10), FONT_WEIGHT_BOLD))
+        self.review_btn.setFont(get_font(tm.get_font_size(10), FONT_WEIGHT_BOLD))
+        self.pinyin_toggle_btn.setFont(get_font(tm.get_font_size(10)))
+        self.theme_btn.setFont(get_font(tm.get_font_size(10)))
+        self.copy_word_btn.setFont(get_font(tm.get_font_size(10)))
+        self.copy_pinyin_btn.setFont(get_font(tm.get_font_size(10)))
+        self.copy_def_btn.setFont(get_font(tm.get_font_size(10)))
+        self.share_btn.setFont(get_font(tm.get_font_size(10)))
+        self.search_result_view.setFont(get_font(tm.get_font_size(11)))
 
     def show_daily_word(self, word_data):
         if not word_data:
