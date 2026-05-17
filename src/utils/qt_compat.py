@@ -36,10 +36,15 @@ else:
         QMenu, QMenuBar, QSlider, QToolBar, QStatusBar,
         QDialog, QFileDialog, QDialogButtonBox, QComboBox, QCheckBox,
         QGroupBox, QFormLayout, QGridLayout, QProgressDialog,
-        QPrintDialog, QProgressBar,
+        QProgressBar,
     )
-    from PyQt6.QtGui import QAction, QFont, QKeySequence, QTextCursor, QPalette, QColor, QClipboard, QPrinter
+    from PyQt6.QtGui import QAction, QFont, QKeySequence, QTextCursor, QPalette, QColor, QClipboard
     from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+    try:
+        from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
+    except ImportError:
+        QPrintDialog = None
+        QPrinter = None
 
     ALIGN_CENTER = Qt.AlignmentFlag.AlignCenter
     ALIGN_LEFT = Qt.AlignmentFlag.AlignLeft
