@@ -58,6 +58,11 @@ for data in a.datas:
     name = data[0].lower()
     skip = any(x in name for x in [
         'qml', 'translations', 'qsci',
+        'qt5qml', 'qt5quick', 'qt5webengine', 'qt5webchannel',
+        'qt5designer', 'qt5bluetooth', 'qt5multimedia',
+        'qt5sensors', 'qt5serialport', 'qt5positioning',
+        'qt5location', 'qt5nfc', 'qt5dbus', 'qt5texttospeech',
+        'qt5help', 'qt5printsupport', 'qt5websockets',
     ])
     if not skip:
         qt_data_excludes.append(data)
