@@ -11,7 +11,7 @@ def get_font_family():
 
 
 def get_font(size, weight=None):
-    from PyQt6.QtGui import QFont
+    from src.utils.qt_compat import QFont
     font = QFont(get_font_family(), size)
     if weight is not None:
         font.setWeight(weight)
