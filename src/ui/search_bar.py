@@ -1,9 +1,9 @@
-from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QLineEdit, QPushButton, QListWidget, 
-    QListWidgetItem, QVBoxLayout, QFrame, QLabel
+from src.utils.qt_compat import (
+    QWidget, QHBoxLayout, QLineEdit, QPushButton, QListWidget,
+    QListWidgetItem, QVBoxLayout, QFrame, QLabel,
+    Qt, pyqtSignal, QTimer, QFont, QKeySequence,
+    FONT_WEIGHT_BOLD, KEY_RETURN, KEY_ENTER
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QKeySequence
 from src.utils.font import get_font
 
 class SearchBar(QWidget):
@@ -42,7 +42,7 @@ class SearchBar(QWidget):
         input_layout.addWidget(self.search_input)
         
         self.search_button = QPushButton("查询")
-        self.search_button.setFont(get_font(12, QFont.Weight.Bold))
+        self.search_button.setFont(get_font(12, FONT_WEIGHT_BOLD))
         self.search_button.setStyleSheet("""
             QPushButton {
                 background-color: #1976d2;
@@ -115,7 +115,7 @@ class SearchBar(QWidget):
                 pinyin = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else ""
                 display_text = f"{word}  ({pinyin})" if pinyin else word
                 list_item = QListWidgetItem(display_text)
-                list_item.setData(Qt.ItemDataRole.UserRole, word)
+                list_item.setData(Qt.UserRole, word)
                 self.suggestion_list.addItem(list_item)
             self.suggestion_list.setVisible(True)
             self.suggestion_list.setMaximumHeight(min(len(suggestions) * 40, 200))
@@ -123,7 +123,7 @@ class SearchBar(QWidget):
             self.suggestion_list.setVisible(False)
     
     def _on_suggestion_selected(self, item):
-        word = item.data(Qt.ItemDataRole.UserRole)
+        word = item.data(Qt.UserRole)
         if word:
             self.search_input.setText(word)
             self.suggestion_list.setVisible(False)

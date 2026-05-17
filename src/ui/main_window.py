@@ -1,10 +1,9 @@
-from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, 
+from src.utils.qt_compat import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit,
     QLabel, QSplitter, QListWidget, QListWidgetItem, QPushButton,
-    QFrame, QScrollArea
+    QFrame, QScrollArea, Qt, pyqtSignal, QFont, QTextCursor,
+    FONT_WEIGHT_BOLD, ALIGN_CENTER
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QTextCursor
 from src.ui.search_bar import SearchBar
 from src.utils.font import get_font, get_css_font_family
 
@@ -29,7 +28,7 @@ class SearchResultView(QTextEdit):
     def mousePressEvent(self, event):
         try:
             cursor = self.cursorForPosition(event.pos())
-            cursor.select(QTextCursor.SelectionType.WordUnderCursor)
+            cursor.select(QTextCursor.WordUnderCursor)
             word = cursor.selectedText()
             if word in ("☆", "★"):
                 if self.current_word_id is not None:
@@ -48,7 +47,7 @@ class FavoriteListWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         
         title_label = QLabel("收藏词汇")
-        title_label.setFont(get_font(10, QFont.Weight.Bold))
+        title_label.setFont(get_font(10, FONT_WEIGHT_BOLD))
         title_label.setStyleSheet("padding: 8px; background-color: #e9ecef; border-radius: 4px;")
         layout.addWidget(title_label)
         
@@ -95,7 +94,7 @@ class HistoryListWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         
         title_label = QLabel("搜索历史")
-        title_label.setFont(get_font(10, QFont.Weight.Bold))
+        title_label.setFont(get_font(10, FONT_WEIGHT_BOLD))
         title_label.setStyleSheet("padding: 8px; background-color: #e9ecef; border-radius: 4px;")
         layout.addWidget(title_label)
         

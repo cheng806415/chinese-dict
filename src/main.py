@@ -7,9 +7,7 @@ if getattr(sys, 'frozen', False):
 else:
     base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-from PyQt6.QtWidgets import QApplication, QMessageBox
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont
+from src.utils.qt_compat import QApplication, QMessageBox, QFont, MSG_ICON_CRITICAL
 
 from src.database.db_manager import DatabaseManager, get_db_path
 from src.database.importer import import_data
@@ -21,7 +19,7 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
     print(f"Unhandled exception:\n{error_msg}")
     try:
         msg = QMessageBox()
-        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setIcon(MSG_ICON_CRITICAL)
         msg.setWindowTitle("Error")
         msg.setText(str(exc_value))
         msg.setDetailedText(error_msg)
@@ -149,7 +147,7 @@ class DictionaryApp:
             print(error_msg)
             try:
                 msg = QMessageBox()
-                msg.setIcon(QMessageBox.Icon.Critical)
+                msg.setIcon(MSG_ICON_CRITICAL)
                 msg.setWindowTitle("Fatal Error")
                 msg.setText(str(e))
                 msg.setDetailedText(error_msg)
