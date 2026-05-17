@@ -70,7 +70,6 @@ class DatabaseManager:
 
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_simplified ON words(simplified)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_traditional ON words(traditional)')
-        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
         try:
             self.cursor.execute('SELECT definition_cn FROM words LIMIT 1')
@@ -81,7 +80,8 @@ class DatabaseManager:
             self.cursor.execute('SELECT pinyin_initials FROM words LIMIT 1')
         except sqlite3.OperationalError:
             self.cursor.execute('ALTER TABLE words ADD COLUMN pinyin_initials TEXT')
-            self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
+
+        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
         self.conn.commit()
 

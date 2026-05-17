@@ -108,7 +108,6 @@ def init_database(db_path):
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_simplified ON words(simplified)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_traditional ON words(traditional)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin ON words(pinyin)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
     try:
         cursor.execute('SELECT definition_cn FROM words LIMIT 1')
@@ -119,7 +118,8 @@ def init_database(db_path):
         cursor.execute('SELECT pinyin_initials FROM words LIMIT 1')
     except sqlite3.OperationalError:
         cursor.execute('ALTER TABLE words ADD COLUMN pinyin_initials TEXT')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
+
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
     conn.commit()
     return conn
