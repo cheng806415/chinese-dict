@@ -49,6 +49,24 @@ def convert_pinyin(pinyin_str):
     return ' '.join(result)
 
 
+def get_initials(pinyin_str):
+    """Extract first letter of each pinyin syllable.
+    e.g. 'yi1 xin1 yi1 yi4' -> 'yxyy'
+    e.g. 'yi1 ma3 dang1 xian1' -> 'ymdx'
+    """
+    if not pinyin_str:
+        return ''
+    syllables = pinyin_str.strip().split()
+    initials = []
+    for s in syllables:
+        s = s.lower()
+        for i, ch in enumerate(s):
+            if ch.isalpha():
+                initials.append(ch)
+                break
+    return ''.join(initials)
+
+
 if __name__ == '__main__':
     tests = [
         ('yi1 xin1 yi1 yi4', 'yī xīn yī yì'),

@@ -7,6 +7,9 @@ import re
 import sys
 import json
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from src.utils.pinyin import get_initials
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -112,6 +115,7 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
             traditional TEXT NOT NULL,
             simplified TEXT NOT NULL,
             pinyin TEXT NOT NULL,
+            pinyin_initials TEXT,
             definition TEXT NOT NULL,
             definition_cn TEXT
         )
@@ -137,6 +141,7 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_simplified ON words(simplified)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_traditional ON words(traditional)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin ON words(pinyin)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
     idiom_map = {}
 
@@ -190,18 +195,20 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
             definition_cn = idiom_map[simplified].get('explanation', '')
         elif simplified in ci_map:
             definition_cn = ci_map.get(simplified, '')
+        initials = get_initials(pinyin)
         cursor.execute(
-            'INSERT INTO words (traditional, simplified, pinyin, definition, definition_cn) VALUES (?, ?, ?, ?, ?)',
-            (traditional, simplified, pinyin, definition, definition_cn)
+            'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn) VALUES (?, ?, ?, ?, ?, ?)',
+            (traditional, simplified, pinyin, initials, definition, definition_cn)
         )
 
     xinhua_idiom_only = 0
     for word, data in idiom_map.items():
         if word not in cedict_simplified:
             xinhua_idiom_only += 1
+            idiom_initials = get_initials(data.get('pinyin', ''))
             cursor.execute(
-                'INSERT INTO words (traditional, simplified, pinyin, definition, definition_cn) VALUES (?, ?, ?, ?, ?)',
-                (word, word, data.get('pinyin', ''), '', data.get('explanation', ''))
+                'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn) VALUES (?, ?, ?, ?, ?, ?)',
+                (word, word, data.get('pinyin', ''), idiom_initials, '', data.get('explanation', ''))
             )
     logger.info(f"Added {xinhua_idiom_only} idioms from xinhua+extra not in CC-CEDICT")
 
@@ -210,8 +217,8 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
         if word not in cedict_simplified and word not in idiom_map:
             xinhua_ci_only += 1
             cursor.execute(
-                'INSERT INTO words (traditional, simplified, pinyin, definition, definition_cn) VALUES (?, ?, ?, ?, ?)',
-                (word, word, '', '', explanation)
+                'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn) VALUES (?, ?, ?, ?, ?, ?)',
+                (word, word, '', '', '', explanation)
             )
     logger.info(f"Added {xinhua_ci_only} words from chinese-xinhua ci not in CC-CEDICT")
 
@@ -234,9 +241,10 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
                     )
                 else:
                     extra_words_count += 1
+                    extra_initials = get_initials(pinyin)
                     cursor.execute(
-                        'INSERT INTO words (traditional, simplified, pinyin, definition, definition_cn) VALUES (?, ?, ?, ?, ?)',
-                        (word, word, pinyin, '', explanation)
+                        'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn) VALUES (?, ?, ?, ?, ?, ?)',
+                        (word, word, pinyin, extra_initials, '', explanation)
                     )
         logger.info(f"Added/updated {len(extra_words)} extra words ({extra_words_count} new)")
 

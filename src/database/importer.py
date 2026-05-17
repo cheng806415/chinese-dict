@@ -7,7 +7,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-BUNDLED_DB_VERSION = "cedict_xinhua_v3"
+BUNDLED_DB_VERSION = "cedict_xinhua_v4"
 
 
 def get_project_root():
@@ -82,6 +82,7 @@ def init_database(db_path):
             traditional TEXT NOT NULL,
             simplified TEXT NOT NULL,
             pinyin TEXT NOT NULL,
+            pinyin_initials TEXT,
             definition TEXT NOT NULL,
             definition_cn TEXT
         )
@@ -107,11 +108,18 @@ def init_database(db_path):
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_simplified ON words(simplified)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_traditional ON words(traditional)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin ON words(pinyin)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
     try:
         cursor.execute('SELECT definition_cn FROM words LIMIT 1')
     except sqlite3.OperationalError:
         cursor.execute('ALTER TABLE words ADD COLUMN definition_cn TEXT')
+
+    try:
+        cursor.execute('SELECT pinyin_initials FROM words LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE words ADD COLUMN pinyin_initials TEXT')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
     conn.commit()
     return conn

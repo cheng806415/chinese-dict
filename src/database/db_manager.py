@@ -2,7 +2,7 @@ import sqlite3
 import os
 import sys
 
-from src.utils.pinyin import convert_pinyin
+from src.utils.pinyin import convert_pinyin, get_initials
 
 
 def get_db_path():
@@ -70,11 +70,18 @@ class DatabaseManager:
 
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_simplified ON words(simplified)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_traditional ON words(traditional)')
+        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
         try:
             self.cursor.execute('SELECT definition_cn FROM words LIMIT 1')
         except sqlite3.OperationalError:
             self.cursor.execute('ALTER TABLE words ADD COLUMN definition_cn TEXT')
+
+        try:
+            self.cursor.execute('SELECT pinyin_initials FROM words LIMIT 1')
+        except sqlite3.OperationalError:
+            self.cursor.execute('ALTER TABLE words ADD COLUMN pinyin_initials TEXT')
+            self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
         self.conn.commit()
 
@@ -94,22 +101,40 @@ class DatabaseManager:
 
     def search_fuzzy(self, word, limit=20):
         like_pattern = f'%{word}%'
-        self.cursor.execute(
-            '''SELECT * FROM words
-               WHERE simplified LIKE ? OR traditional LIKE ? OR pinyin LIKE ?
-               LIMIT ?''',
-            (like_pattern, like_pattern, like_pattern, limit)
-        )
+        initials = get_initials(word)
+        if initials and len(initials) >= 2:
+            self.cursor.execute(
+                '''SELECT * FROM words
+                   WHERE simplified LIKE ? OR traditional LIKE ? OR pinyin LIKE ? OR pinyin_initials LIKE ?
+                   LIMIT ?''',
+                (like_pattern, like_pattern, like_pattern, f'{initials}%', limit)
+            )
+        else:
+            self.cursor.execute(
+                '''SELECT * FROM words
+                   WHERE simplified LIKE ? OR traditional LIKE ? OR pinyin LIKE ?
+                   LIMIT ?''',
+                (like_pattern, like_pattern, like_pattern, limit)
+            )
         return [self._format_result(dict(row)) for row in self.cursor.fetchall()]
 
     def get_suggestions(self, prefix, limit=10):
         like_pattern = f'{prefix}%'
-        self.cursor.execute(
-            '''SELECT simplified, pinyin FROM words
-               WHERE simplified LIKE ? OR pinyin LIKE ?
-               LIMIT ?''',
-            (like_pattern, like_pattern, limit)
-        )
+        initials = get_initials(prefix)
+        if initials and len(initials) >= 2:
+            self.cursor.execute(
+                '''SELECT simplified, pinyin FROM words
+                   WHERE simplified LIKE ? OR pinyin LIKE ? OR pinyin_initials LIKE ?
+                   LIMIT ?''',
+                (like_pattern, like_pattern, f'{initials}%', limit)
+            )
+        else:
+            self.cursor.execute(
+                '''SELECT simplified, pinyin FROM words
+                   WHERE simplified LIKE ? OR pinyin LIKE ?
+                   LIMIT ?''',
+                (like_pattern, like_pattern, limit)
+            )
         return [(row[0], format_pinyin(row[1])) for row in self.cursor.fetchall()]
 
     def add_favorite(self, word_id):
