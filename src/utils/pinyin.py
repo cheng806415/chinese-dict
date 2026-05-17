@@ -8,6 +8,12 @@ TONE_MAP = {
     'v': ['ǖ', 'ǘ', 'ǚ', 'ǜ', 'ü'],
 }
 
+PINYIN_NORMALIZE_MAP = {
+    'lv': 'lv',
+    'nv': 'nv',
+}
+
+
 def convert_syllable(syllable):
     tone_num = 5
     for ch in syllable:
@@ -15,17 +21,17 @@ def convert_syllable(syllable):
             tone_num = int(ch)
             syllable = syllable.replace(ch, '')
             break
-    
+
     if tone_num == 5 or tone_num == 0:
         return syllable
-    
+
     tone_index = tone_num - 1
-    
+
     if 'ü' in syllable or 'v' in syllable:
         syllable = syllable.replace('v', 'ü')
         if 'ü' in syllable:
             return syllable.replace('ü', TONE_MAP['ü'][tone_index])
-    
+
     vowels = 'aeiou'
     for i, ch in enumerate(syllable):
         if ch in vowels:
@@ -36,8 +42,9 @@ def convert_syllable(syllable):
                     return syllable[:i + 1] + TONE_MAP[syllable[i + 1]][tone_index] + syllable[i + 2:]
             else:
                 return syllable[:i] + TONE_MAP[ch][tone_index] + syllable[i + 1:]
-    
+
     return syllable
+
 
 def convert_pinyin(pinyin_str):
     if not pinyin_str:
@@ -67,6 +74,60 @@ def get_initials(pinyin_str):
     return ''.join(initials)
 
 
+def pinyin_normalize(pinyin_str):
+    """Normalize pinyin input for fault-tolerant search.
+    Maps common alternative spellings:
+      - nv <-> lv (both map to nv for matching)
+      - Also handles tone numbers.
+    Returns normalized lowercase string.
+    """
+    if not pinyin_str:
+        return ''
+    s = pinyin_str.lower().strip()
+    # Map lv to nv so both can find nv3/nv etc.
+    # We replace standalone 'lv' syllables with 'nv'.
+    # A simple approach: replace 'lv' with 'nv' when it appears as a syllable.
+    import re
+    def replace_lv(match):
+        return 'nv' + match.group(1)
+    s = re.sub(r'lv(\d?)', replace_lv, s)
+    return s
+
+
+def fuzzy_match_pinyin(query, pinyin_field):
+    """Check if query fuzzy-matches a pinyin field.
+    Supports:
+      - Full pinyin without tones (e.g. 'yixin' matches 'yi1 xin1')
+      - Full pinyin with tones (e.g. 'yi1xin1' matches 'yi1 xin1')
+    Returns True if match, False otherwise.
+    """
+    if not query or not pinyin_field:
+        return False
+    query = query.lower().strip()
+    pinyin_field = pinyin_field.lower().strip()
+    # Remove spaces and tone digits from both for comparison
+    def strip_pinyin(p):
+        return ''.join(ch for ch in p if ch.isalpha())
+    query_stripped = strip_pinyin(query)
+    field_stripped = strip_pinyin(pinyin_field)
+    if not query_stripped:
+        return False
+    # Check if query is a substring of the stripped pinyin
+    if query_stripped in field_stripped:
+        return True
+    # Also allow prefix match on each syllable
+    query_syllables = query.split()
+    field_syllables = pinyin_field.split()
+    if len(query_syllables) <= len(field_syllables):
+        for qs, fs in zip(query_syllables, field_syllables):
+            qs = strip_pinyin(qs)
+            fs = strip_pinyin(fs)
+            if not fs.startswith(qs):
+                return False
+        return True
+    return False
+
+
 if __name__ == '__main__':
     tests = [
         ('yi1 xin1 yi1 yi4', 'yī xīn yī yì'),
@@ -81,3 +142,14 @@ if __name__ == '__main__':
         result = convert_pinyin(inp)
         status = 'OK' if result == expected else f'FAIL (got {result})'
         print(f'{inp} -> {result}  {status}')
+
+    norm_tests = [
+        ('lv', 'nv'),
+        ('lv3', 'nv3'),
+        ('nvl', 'nvl'),
+        ('LV', 'nv'),
+    ]
+    for inp, expected in norm_tests:
+        result = pinyin_normalize(inp)
+        status = 'OK' if result == expected else f'FAIL (got {result})'
+        print(f'normalize({inp}) -> {result}  {status}')

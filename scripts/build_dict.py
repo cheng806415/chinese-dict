@@ -9,6 +9,8 @@ import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.utils.pinyin import get_initials
+from src.utils.hsk import get_hsk_level
+from src.utils.discrimination import get_discrimination
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -117,7 +119,11 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
             pinyin TEXT NOT NULL,
             pinyin_initials TEXT,
             definition TEXT NOT NULL,
-            definition_cn TEXT
+            definition_cn TEXT,
+            examples TEXT,
+            frequency TEXT,
+            hsk_level INTEGER,
+            discrimination TEXT
         )
     ''')
 
@@ -180,25 +186,46 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
         logger.info(f"Added {added} extra idioms, total idiom map: {len(idiom_map)} entries")
 
     ci_map = {}
+    ci_examples_map = {}
     if xinhua_ci:
         for item in xinhua_ci:
             word = item.get('ci', '')
             if word:
                 ci_map[word] = item.get('explanation', '')
+                example = item.get('example', '')
+                if example:
+                    ci_examples_map[word] = json.dumps([example], ensure_ascii=False)
         logger.info(f"Built ci map with {len(ci_map)} entries")
+
+    def _compute_frequency(word):
+        length = len(word)
+        if length <= 2:
+            return 'common'
+        elif length <= 4:
+            return 'moderate'
+        return 'rare'
+
+    def _build_insert_values(traditional, simplified, pinyin, initials, definition, definition_cn, examples=None, frequency=None, hsk_level=None, discrimination=None):
+        return (traditional, simplified, pinyin, initials, definition, definition_cn, examples, frequency, hsk_level, discrimination)
 
     cedict_simplified = set()
     for traditional, simplified, pinyin, definition in cedict_words:
         cedict_simplified.add(simplified)
         definition_cn = ''
+        examples = None
         if simplified in idiom_map:
             definition_cn = idiom_map[simplified].get('explanation', '')
         elif simplified in ci_map:
             definition_cn = ci_map.get(simplified, '')
+            examples = ci_examples_map.get(simplified)
         initials = get_initials(pinyin)
+        frequency = _compute_frequency(simplified)
+        hsk_level = get_hsk_level(simplified)
+        discrimination_data = get_discrimination(simplified)
+        discrimination = discrimination_data.get('explanation') if discrimination_data else None
         cursor.execute(
-            'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn) VALUES (?, ?, ?, ?, ?, ?)',
-            (traditional, simplified, pinyin, initials, definition, definition_cn)
+            'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn, examples, frequency, hsk_level, discrimination) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            _build_insert_values(traditional, simplified, pinyin, initials, definition, definition_cn, examples, frequency, hsk_level, discrimination)
         )
 
     xinhua_idiom_only = 0
@@ -206,9 +233,15 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
         if word not in cedict_simplified:
             xinhua_idiom_only += 1
             idiom_initials = get_initials(data.get('pinyin', ''))
+            example = data.get('example')
+            examples = json.dumps([example], ensure_ascii=False) if example else None
+            frequency = _compute_frequency(word)
+            hsk_level = get_hsk_level(word)
+            discrimination_data = get_discrimination(word)
+            discrimination = discrimination_data.get('explanation') if discrimination_data else None
             cursor.execute(
-                'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn) VALUES (?, ?, ?, ?, ?, ?)',
-                (word, word, data.get('pinyin', ''), idiom_initials, '', data.get('explanation', ''))
+                'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn, examples, frequency, hsk_level, discrimination) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                _build_insert_values(word, word, data.get('pinyin', ''), idiom_initials, '', data.get('explanation', ''), examples, frequency, hsk_level, discrimination)
             )
     logger.info(f"Added {xinhua_idiom_only} idioms from xinhua+extra not in CC-CEDICT")
 
@@ -216,9 +249,14 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
     for word, explanation in ci_map.items():
         if word not in cedict_simplified and word not in idiom_map:
             xinhua_ci_only += 1
+            examples = ci_examples_map.get(word)
+            frequency = _compute_frequency(word)
+            hsk_level = get_hsk_level(word)
+            discrimination_data = get_discrimination(word)
+            discrimination = discrimination_data.get('explanation') if discrimination_data else None
             cursor.execute(
-                'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn) VALUES (?, ?, ?, ?, ?, ?)',
-                (word, word, '', '', '', explanation)
+                'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn, examples, frequency, hsk_level, discrimination) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                _build_insert_values(word, word, '', '', '', explanation, examples, frequency, hsk_level, discrimination)
             )
     logger.info(f"Added {xinhua_ci_only} words from chinese-xinhua ci not in CC-CEDICT")
 
@@ -242,9 +280,13 @@ def build_dictionary(db_path, cedict_words, idiom_50k=None, xinhua_idioms=None, 
                 else:
                     extra_words_count += 1
                     extra_initials = get_initials(pinyin)
+                    frequency = _compute_frequency(word)
+                    hsk_level = get_hsk_level(word)
+                    discrimination_data = get_discrimination(word)
+                    discrimination = discrimination_data.get('explanation') if discrimination_data else None
                     cursor.execute(
-                        'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn) VALUES (?, ?, ?, ?, ?, ?)',
-                        (word, word, pinyin, extra_initials, '', explanation)
+                        'INSERT INTO words (traditional, simplified, pinyin, pinyin_initials, definition, definition_cn, examples, frequency, hsk_level, discrimination) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        _build_insert_values(word, word, pinyin, extra_initials, '', explanation, None, frequency, hsk_level, discrimination)
                     )
         logger.info(f"Added/updated {len(extra_words)} extra words ({extra_words_count} new)")
 

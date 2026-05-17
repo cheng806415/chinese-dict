@@ -84,7 +84,11 @@ def init_database(db_path):
             pinyin TEXT NOT NULL,
             pinyin_initials TEXT,
             definition TEXT NOT NULL,
-            definition_cn TEXT
+            definition_cn TEXT,
+            examples TEXT,
+            frequency TEXT,
+            hsk_level INTEGER,
+            discrimination TEXT
         )
     ''')
 
@@ -118,6 +122,26 @@ def init_database(db_path):
         cursor.execute('SELECT pinyin_initials FROM words LIMIT 1')
     except sqlite3.OperationalError:
         cursor.execute('ALTER TABLE words ADD COLUMN pinyin_initials TEXT')
+
+    try:
+        cursor.execute('SELECT examples FROM words LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE words ADD COLUMN examples TEXT')
+
+    try:
+        cursor.execute('SELECT frequency FROM words LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE words ADD COLUMN frequency TEXT')
+
+    try:
+        cursor.execute('SELECT hsk_level FROM words LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE words ADD COLUMN hsk_level INTEGER')
+
+    try:
+        cursor.execute('SELECT discrimination FROM words LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE words ADD COLUMN discrimination TEXT')
 
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
 
