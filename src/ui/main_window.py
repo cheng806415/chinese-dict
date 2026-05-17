@@ -118,6 +118,9 @@ class FavoriteListWidget(QWidget):
     def get_items(self):
         return [self.list_widget.item(i).text() for i in range(self.list_widget.count())]
 
+    def set_title(self, title):
+        self.title_label.setText(title)
+
     def update_theme(self, theme_manager):
         if theme_manager.is_dark():
             self.title_label.setStyleSheet(
