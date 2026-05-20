@@ -2,7 +2,6 @@ import unittest
 import sys
 import os
 
-# Add project root to path for CI compatibility
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
@@ -46,14 +45,14 @@ class TestSafeVoidOperation(unittest.TestCase):
         def success_func():
             pass
 
-        success_func()  # Should not raise
+        success_func()
 
     def test_failure(self):
         @safe_void_operation()
         def fail_func():
             raise ValueError('test error')
 
-        fail_func()  # Should not raise
+        fail_func()
 
 
 class TestRetryOnError(unittest.TestCase):

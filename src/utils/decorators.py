@@ -1,14 +1,11 @@
 import functools
-import logging
 import traceback
 from typing import Any, Callable, Optional, TypeVar
-
-logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
 
-def safe_operation(default: Optional[T] = None, log_level: int = logging.ERROR) -> Callable:
+def safe_operation(default: Optional[T] = None) -> Callable:
     """Decorator that catches exceptions and returns a default value.
 
     Usage:
@@ -21,14 +18,13 @@ def safe_operation(default: Optional[T] = None, log_level: int = logging.ERROR) 
         def wrapper(*args, **kwargs) -> Optional[T]:
             try:
                 return func(*args, **kwargs)
-            except Exception as e:
-                logger.log(log_level, f"{func.__name__} failed: {e}\n{traceback.format_exc()}")
+            except Exception:
                 return default
         return wrapper
     return decorator
 
 
-def safe_void_operation(log_level: int = logging.ERROR) -> Callable:
+def safe_void_operation() -> Callable:
     """Decorator for void functions that should not raise.
 
     Usage:
@@ -41,8 +37,8 @@ def safe_void_operation(log_level: int = logging.ERROR) -> Callable:
         def wrapper(*args, **kwargs) -> None:
             try:
                 func(*args, **kwargs)
-            except Exception as e:
-                logger.log(log_level, f"{func.__name__} failed: {e}\n{traceback.format_exc()}")
+            except Exception:
+                pass
         return wrapper
     return decorator
 
@@ -67,7 +63,6 @@ def retry_on_error(max_retries: int = 3, delay: float = 0.1) -> Callable:
                     last_exception = e
                     if attempt < max_retries - 1:
                         time.sleep(delay)
-                        logger.warning(f"{func.__name__} attempt {attempt + 1} failed, retrying...")
             raise last_exception
         return wrapper
     return decorator

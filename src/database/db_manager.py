@@ -57,7 +57,6 @@ class DatabaseManager:
         self._fts5_available = False
         self.connect()
 
-    @retry_on_error(max_retries=3, delay=0.1)
     def connect(self) -> None:
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
@@ -174,6 +173,8 @@ class DatabaseManager:
 
     def _optimize_sqlite(self) -> None:
         """Apply SQLite performance optimizations."""
+        # Commit any pending transaction before changing PRAGMAs
+        self.conn.commit()
         self.cursor.execute('PRAGMA journal_mode = WAL')
         self.cursor.execute('PRAGMA synchronous = NORMAL')
         self.cursor.execute('PRAGMA cache_size = -64000')  # 64MB cache
@@ -184,20 +185,11 @@ class DatabaseManager:
         """Create FTS5 virtual table and triggers if FTS5 is available."""
         self._fts5_available = False
         try:
-            self.cursor.execute("SELECT sqlite_compileoption_used('ENABLE_FTS5')")
-            result = self.cursor.fetchone()
-            if result and result[0] == 1:
-                self._fts5_available = True
-        except Exception:
-            pass
-
-        if not self._fts5_available:
-            try:
-                self.cursor.execute("CREATE VIRTUAL TABLE IF NOT EXISTS words_fts USING fts5(simplified, traditional, pinyin, definition, definition_cn, content=words, content_rowid=id)")
-                self._fts5_available = True
-            except sqlite3.OperationalError:
-                self._fts5_available = False
-                return
+            self.cursor.execute("CREATE VIRTUAL TABLE IF NOT EXISTS words_fts USING fts5(simplified, traditional, pinyin, definition, definition_cn, content=words, content_rowid=id)")
+            self._fts5_available = True
+        except sqlite3.OperationalError:
+            self._fts5_available = False
+            return
 
         if self._fts5_available:
             self.cursor.execute('''
