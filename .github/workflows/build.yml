@@ -97,7 +97,7 @@ jobs:
   release:
     needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
@@ -113,10 +113,25 @@ jobs:
           name: ChineseDict-macOS-ARM64
           path: ./artifacts/
 
+      - name: Get version info
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            echo "tag=dev-${SHORT_SHA}" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
           files: |
             ./artifacts/ChineseDict.exe
             ./artifacts/ChineseDict-macOS-ARM64.dmg
           generate_release_notes: true
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
