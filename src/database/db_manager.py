@@ -6,13 +6,15 @@ import random
 import json
 import urllib.request
 from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Any, Tuple
 
 from src.utils.pinyin import convert_pinyin, get_initials, pinyin_normalize, fuzzy_match_pinyin
 from src.utils.radicals import get_radical_chars
 from src.utils.helpers import get_version, get_remote_version_url
+from src.utils.decorators import safe_operation, safe_void_operation, retry_on_error
 
 
-def get_db_path():
+def get_db_path() -> str:
     if getattr(sys, 'frozen', False):
         if sys.platform == 'darwin':
             app_support = os.path.expanduser('~/Library/Application Support')
@@ -26,7 +28,7 @@ def get_db_path():
     return os.path.join(data_dir, 'dictionary.db')
 
 
-def format_pinyin(pinyin):
+def format_pinyin(pinyin: Optional[str]) -> str:
     if not pinyin:
         return ''
     if any(c.isdigit() for c in pinyin):
@@ -34,7 +36,7 @@ def format_pinyin(pinyin):
     return pinyin
 
 
-def _build_fuzzy_pinyin_like(query):
+def _build_fuzzy_pinyin_like(query: str) -> str:
     """Build a LIKE pattern for full pinyin fuzzy match.
     e.g. 'yixin' -> 'y%x%i%x%n%'
     This allows matching 'yi1 xin1' style pinyin fields.
@@ -48,18 +50,21 @@ def _build_fuzzy_pinyin_like(query):
 
 
 class DatabaseManager:
-    def __init__(self, db_path=None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = db_path or get_db_path()
-        self.conn = None
+        self.conn: Optional[sqlite3.Connection] = None
+        self.cursor: Optional[sqlite3.Cursor] = None
+        self._fts5_available = False
         self.connect()
 
-    def connect(self):
+    @retry_on_error(max_retries=3, delay=0.1)
+    def connect(self) -> None:
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
         self._ensure_tables()
 
-    def _ensure_tables(self):
+    def _ensure_tables(self) -> None:
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS words (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,42 +145,42 @@ class DatabaseManager:
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_simplified ON words(simplified)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_traditional ON words(traditional)')
 
-        try:
-            self.cursor.execute('SELECT definition_cn FROM words LIMIT 1')
-        except sqlite3.OperationalError:
-            self.cursor.execute('ALTER TABLE words ADD COLUMN definition_cn TEXT')
-
-        try:
-            self.cursor.execute('SELECT pinyin_initials FROM words LIMIT 1')
-        except sqlite3.OperationalError:
-            self.cursor.execute('ALTER TABLE words ADD COLUMN pinyin_initials TEXT')
-
-        try:
-            self.cursor.execute('SELECT examples FROM words LIMIT 1')
-        except sqlite3.OperationalError:
-            self.cursor.execute('ALTER TABLE words ADD COLUMN examples TEXT')
-
-        try:
-            self.cursor.execute('SELECT frequency FROM words LIMIT 1')
-        except sqlite3.OperationalError:
-            self.cursor.execute('ALTER TABLE words ADD COLUMN frequency TEXT')
-
-        try:
-            self.cursor.execute('SELECT hsk_level FROM words LIMIT 1')
-        except sqlite3.OperationalError:
-            self.cursor.execute('ALTER TABLE words ADD COLUMN hsk_level INTEGER')
-
-        try:
-            self.cursor.execute('SELECT discrimination FROM words LIMIT 1')
-        except sqlite3.OperationalError:
-            self.cursor.execute('ALTER TABLE words ADD COLUMN discrimination TEXT')
+        # Add missing columns with migrations
+        self._migrate_columns()
 
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_pinyin_initials ON words(pinyin_initials)')
+
+        # Performance optimizations
+        self._optimize_sqlite()
 
         self._ensure_fts5()
         self.conn.commit()
 
-    def _ensure_fts5(self):
+    def _migrate_columns(self) -> None:
+        """Add columns that may be missing from older databases."""
+        migrations = [
+            ('definition_cn', 'TEXT'),
+            ('pinyin_initials', 'TEXT'),
+            ('examples', 'TEXT'),
+            ('frequency', 'TEXT'),
+            ('hsk_level', 'INTEGER'),
+            ('discrimination', 'TEXT'),
+        ]
+        for col_name, col_type in migrations:
+            try:
+                self.cursor.execute(f'SELECT {col_name} FROM words LIMIT 1')
+            except sqlite3.OperationalError:
+                self.cursor.execute(f'ALTER TABLE words ADD COLUMN {col_name} {col_type}')
+
+    def _optimize_sqlite(self) -> None:
+        """Apply SQLite performance optimizations."""
+        self.cursor.execute('PRAGMA journal_mode = WAL')
+        self.cursor.execute('PRAGMA synchronous = NORMAL')
+        self.cursor.execute('PRAGMA cache_size = -64000')  # 64MB cache
+        self.cursor.execute('PRAGMA temp_store = MEMORY')
+        self.cursor.execute('PRAGMA mmap_size = 268435456')  # 256MB memory map
+
+    def _ensure_fts5(self) -> None:
         """Create FTS5 virtual table and triggers if FTS5 is available."""
         self._fts5_available = False
         try:
@@ -216,11 +221,21 @@ class DatabaseManager:
                 END
             ''')
 
-    def _format_result(self, row_dict):
+    def rebuild_fts5(self) -> None:
+        """Rebuild the FTS5 index. Call this after bulk data import."""
+        if not self._fts5_available:
+            return
+        try:
+            self.cursor.execute("INSERT INTO words_fts(words_fts) VALUES ('rebuild')")
+            self.conn.commit()
+        except Exception as e:
+            print(f"FTS5 rebuild failed: {e}")
+
+    def _format_result(self, row_dict: Dict[str, Any]) -> Dict[str, Any]:
         row_dict['pinyin'] = format_pinyin(row_dict.get('pinyin', ''))
         return row_dict
 
-    def search_exact(self, word):
+    def search_exact(self, word: str) -> Optional[Dict[str, Any]]:
         self.cursor.execute(
             'SELECT * FROM words WHERE simplified = ? OR traditional = ? LIMIT 1',
             (word, word)
@@ -230,7 +245,7 @@ class DatabaseManager:
             return self._format_result(dict(row))
         return None
 
-    def search_fts(self, query, limit=20):
+    def search_fts(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
         """Search using FTS5 full-text search. Falls back to regular fuzzy search if FTS5 is unavailable."""
         if not query:
             return []
@@ -254,7 +269,7 @@ class DatabaseManager:
             pass
         return self.search_fuzzy(query, limit=limit)
 
-    def search_fuzzy(self, word, limit=20):
+    def search_fuzzy(self, word: str, limit: int = 20) -> List[Dict[str, Any]]:
         if not word:
             return []
 
@@ -264,7 +279,6 @@ class DatabaseManager:
         initials = get_initials(word)
         norm_initials = get_initials(norm_word)
 
-        # Use a single OR query instead of UNION for speed
         if initials and len(initials) >= 2:
             self.cursor.execute(
                 '''SELECT * FROM words
@@ -286,8 +300,8 @@ class DatabaseManager:
 
         rows = self.cursor.fetchall()
 
-        results = []
-        seen = set()
+        results: List[Dict[str, Any]] = []
+        seen: set = set()
         for row in rows:
             rd = dict(row)
             wid = rd.get('id')
@@ -300,7 +314,7 @@ class DatabaseManager:
         word_lower = word.lower()
         norm_lower = norm_word.lower()
 
-        def rank_score(r):
+        def rank_score(r: Dict[str, Any]) -> Tuple[int, int]:
             simp = r.get('simplified', '') or ''
             trad = r.get('traditional', '') or ''
             py_raw = r.get('pinyin', '') or ''
@@ -341,7 +355,7 @@ class DatabaseManager:
         results.sort(key=rank_score)
         return results[:limit]
 
-    def get_suggestions(self, prefix, limit=10):
+    def get_suggestions(self, prefix: str, limit: int = 10) -> List[Tuple[str, str]]:
         if not prefix:
             return []
 
@@ -370,7 +384,7 @@ class DatabaseManager:
 
         return [(row[0], format_pinyin(row[1])) for row in self.cursor.fetchall()]
 
-    def search_by_radical(self, radical, limit=50):
+    def search_by_radical(self, radical: str, limit: int = 50) -> List[Dict[str, Any]]:
         """Search words by radical using a hardcoded mapping."""
         chars = get_radical_chars(radical)
         if not chars:
@@ -383,28 +397,28 @@ class DatabaseManager:
         )
         return [self._format_result(dict(row)) for row in self.cursor.fetchall()]
 
-    def add_favorite(self, word_id):
+    def add_favorite(self, word_id: int) -> None:
         self.cursor.execute(
             'INSERT INTO favorites (word_id) VALUES (?)',
             (word_id,)
         )
         self.conn.commit()
 
-    def remove_favorite(self, word_id):
+    def remove_favorite(self, word_id: int) -> None:
         self.cursor.execute(
             'DELETE FROM favorites WHERE word_id = ?',
             (word_id,)
         )
         self.conn.commit()
 
-    def is_favorite(self, word_id):
+    def is_favorite(self, word_id: int) -> bool:
         self.cursor.execute(
             'SELECT COUNT(*) FROM favorites WHERE word_id = ?',
             (word_id,)
         )
         return self.cursor.fetchone()[0] > 0
 
-    def get_favorites(self, limit=50):
+    def get_favorites(self, limit: int = 50) -> List[Dict[str, Any]]:
         self.cursor.execute(
             '''SELECT w.* FROM words w
                INNER JOIN favorites f ON w.id = f.word_id
@@ -414,33 +428,39 @@ class DatabaseManager:
         )
         return [self._format_result(dict(row)) for row in self.cursor.fetchall()]
 
-    def add_search_history(self, word):
+    def add_search_history(self, word: str) -> None:
         self.cursor.execute(
             'INSERT INTO search_history (word) VALUES (?)',
             (word,)
         )
         self.conn.commit()
 
-    def get_search_history(self, limit=20):
+    def get_search_history(self, limit: int = 20) -> List[str]:
+        """Get search history with time-decay weighting.
+        More recent searches and frequently searched words are prioritized.
+        """
         self.cursor.execute(
-            '''SELECT word, COUNT(*) as freq, MAX(searched_at) as last_searched
+            '''SELECT word,
+                       COUNT(*) as freq,
+                       MAX(searched_at) as last_searched,
+                       JULIANDAY('now') - JULIANDAY(MAX(searched_at)) as days_ago
                FROM search_history
                GROUP BY word
-               ORDER BY freq DESC, last_searched DESC
+               ORDER BY (freq * 1.0 / (1 + days_ago * 0.1)) DESC, last_searched DESC
                LIMIT ?''',
             (limit,)
         )
         return [row[0] for row in self.cursor.fetchall()]
 
-    def close(self):
+    def close(self) -> None:
         if self.conn:
             self.conn.close()
 
-    def get_word_count(self):
+    def get_word_count(self) -> int:
         self.cursor.execute('SELECT COUNT(*) FROM words')
         return self.cursor.fetchone()[0]
 
-    def get_daily_word(self):
+    def get_daily_word(self) -> Optional[Dict[str, Any]]:
         today = datetime.now().strftime('%Y-%m-%d')
         self.cursor.execute(
             'SELECT word_id FROM daily_word WHERE date = ?',
@@ -472,7 +492,7 @@ class DatabaseManager:
             return self._format_result(dict(row))
         return None
 
-    def add_to_word_book(self, word_id):
+    def add_to_word_book(self, word_id: int) -> None:
         self.cursor.execute(
             '''INSERT OR IGNORE INTO word_book (word_id, next_review)
                VALUES (?, datetime('now'))''',
@@ -480,21 +500,21 @@ class DatabaseManager:
         )
         self.conn.commit()
 
-    def remove_from_word_book(self, word_id):
+    def remove_from_word_book(self, word_id: int) -> None:
         self.cursor.execute(
             'DELETE FROM word_book WHERE word_id = ?',
             (word_id,)
         )
         self.conn.commit()
 
-    def is_in_word_book(self, word_id):
+    def is_in_word_book(self, word_id: int) -> bool:
         self.cursor.execute(
             'SELECT COUNT(*) FROM word_book WHERE word_id = ?',
             (word_id,)
         )
         return self.cursor.fetchone()[0] > 0
 
-    def get_due_reviews(self, limit=20):
+    def get_due_reviews(self, limit: int = 20) -> List[Dict[str, Any]]:
         self.cursor.execute(
             '''SELECT w.* FROM words w
                INNER JOIN word_book wb ON w.id = wb.word_id
@@ -505,7 +525,17 @@ class DatabaseManager:
         )
         return [self._format_result(dict(row)) for row in self.cursor.fetchall()]
 
-    def review_word(self, word_id, quality):
+    def review_word(self, word_id: int, quality: int) -> None:
+        """Review a word using an enhanced SM-2 algorithm.
+
+        Args:
+            word_id: The word ID
+            quality: 0-5 rating where:
+                0-2 = Incorrect response (reset or reduce interval)
+                3 = Correct but difficult
+                4 = Correct with hesitation
+                5 = Perfect response
+        """
         self.cursor.execute(
             'SELECT * FROM word_book WHERE word_id = ?',
             (word_id,)
@@ -518,8 +548,14 @@ class DatabaseManager:
         interval = data.get('interval_days', 0) or 0
         reps = data.get('review_count', 0) or 0
 
+        # Enhanced SM-2 algorithm
         if quality < 3:
-            interval = 1
+            # Failed: reset interval but keep some progress
+            if reps > 2:
+                interval = max(1, interval // 2)
+            else:
+                interval = 1
+            reps = max(0, reps - 1)
         else:
             if reps == 0:
                 interval = 1
@@ -528,6 +564,7 @@ class DatabaseManager:
             else:
                 interval = int(round(interval * ease))
 
+        # Adjust ease factor based on quality
         ease = ease + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
         if ease < 1.3:
             ease = 1.3
@@ -549,7 +586,7 @@ class DatabaseManager:
         )
         self.conn.commit()
 
-    def get_word_book_words(self, limit=50):
+    def get_word_book_words(self, limit: int = 50) -> List[Dict[str, Any]]:
         self.cursor.execute(
             '''SELECT w.* FROM words w
                INNER JOIN word_book wb ON w.id = wb.word_id
@@ -559,7 +596,7 @@ class DatabaseManager:
         )
         return [self._format_result(dict(row)) for row in self.cursor.fetchall()]
 
-    def get_stats(self):
+    def get_stats(self) -> Dict[str, int]:
         self.cursor.execute('SELECT * FROM stats WHERE id = 1')
         row = self.cursor.fetchone()
         if not row:
@@ -586,7 +623,7 @@ class DatabaseManager:
             'quiz_total': data.get('quiz_total', 0) or 0,
         }
 
-    def update_study_streak(self):
+    def update_study_streak(self) -> None:
         today = datetime.now().strftime('%Y-%m-%d')
         self.cursor.execute('SELECT last_study_date FROM stats WHERE id = 1')
         row = self.cursor.fetchone()
@@ -608,7 +645,7 @@ class DatabaseManager:
             )
         self.conn.commit()
 
-    def record_quiz_result(self, correct, total):
+    def record_quiz_result(self, correct: int, total: int) -> None:
         self.cursor.execute(
             '''UPDATE stats SET quiz_correct = quiz_correct + ?,
                                 quiz_total = quiz_total + ?
@@ -617,7 +654,7 @@ class DatabaseManager:
         )
         self.conn.commit()
 
-    def get_setting(self, key, default=None):
+    def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
         try:
             self.cursor.execute(
                 'SELECT value FROM settings WHERE key = ?',
@@ -628,7 +665,7 @@ class DatabaseManager:
         except Exception:
             return default
 
-    def set_setting(self, key, value):
+    def set_setting(self, key: str, value: str) -> None:
         try:
             self.cursor.execute(
                 '''INSERT INTO settings (key, value) VALUES (?, ?)
@@ -639,12 +676,13 @@ class DatabaseManager:
         except Exception:
             pass
 
-    def update_check(self):
+    def update_check(self) -> Dict[str, Any]:
         """Check if a newer version of the database is available remotely.
         Returns a dict with keys: has_update (bool), remote_version (str), local_version (str), info (str).
-        For now this is a framework; network call is best-effort and non-blocking."""
+        For now this is a framework; network call is best-effort and non-blocking.
+        """
         local_version = get_version()
-        result = {
+        result: Dict[str, Any] = {
             'has_update': False,
             'remote_version': local_version,
             'local_version': local_version,
@@ -665,3 +703,44 @@ class DatabaseManager:
         except Exception as e:
             result['info'] = str(e)
         return result
+
+    def export_learning_data(self) -> Dict[str, Any]:
+        """Export all learning data for backup/transfer."""
+        tables = ['favorites', 'search_history', 'word_book', 'stats', 'settings', 'daily_word']
+        data: Dict[str, Any] = {}
+        for table in tables:
+            try:
+                self.cursor.execute(f'SELECT * FROM {table}')
+                rows = self.cursor.fetchall()
+                columns = [description[0] for description in self.cursor.description]
+                data[table] = [dict(zip(columns, row)) for row in rows]
+            except Exception:
+                data[table] = []
+        return {
+            'version': get_version(),
+            'exported_at': datetime.now().isoformat(),
+            'tables': data,
+        }
+
+    def import_learning_data(self, data: Dict[str, Any]) -> bool:
+        """Import learning data from a backup."""
+        try:
+            tables = data.get('tables', {})
+            for table, rows in tables.items():
+                if not rows:
+                    continue
+                # Clear existing data and import
+                self.cursor.execute(f'DELETE FROM {table}')
+                columns = list(rows[0].keys())
+                placeholders = ','.join('?' * len(columns))
+                col_names = ','.join(columns)
+                insert_sql = f'INSERT INTO {table} ({col_names}) VALUES ({placeholders})'
+                for row in rows:
+                    values = [row.get(col) for col in columns]
+                    self.cursor.execute(insert_sql, values)
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Import failed: {e}")
+            self.conn.rollback()
+            return False

@@ -1,3 +1,6 @@
+import re
+from typing import List, Optional
+
 TONE_MAP = {
     'a': ['ā', 'á', 'ǎ', 'à', 'a'],
     'e': ['ē', 'é', 'ě', 'è', 'e'],
@@ -14,7 +17,7 @@ PINYIN_NORMALIZE_MAP = {
 }
 
 
-def convert_syllable(syllable):
+def convert_syllable(syllable: str) -> str:
     tone_num = 5
     for ch in syllable:
         if ch.isdigit():
@@ -46,17 +49,17 @@ def convert_syllable(syllable):
     return syllable
 
 
-def convert_pinyin(pinyin_str):
+def convert_pinyin(pinyin_str: Optional[str]) -> str:
     if not pinyin_str:
         return ''
     syllables = pinyin_str.strip().split()
-    result = []
+    result: List[str] = []
     for s in syllables:
         result.append(convert_syllable(s))
     return ' '.join(result)
 
 
-def get_initials(pinyin_str):
+def get_initials(pinyin_str: Optional[str]) -> str:
     """Extract first letter of each pinyin syllable.
     e.g. 'yi1 xin1 yi1 yi4' -> 'yxyy'
     e.g. 'yi1 ma3 dang1 xian1' -> 'ymdx'
@@ -64,17 +67,17 @@ def get_initials(pinyin_str):
     if not pinyin_str:
         return ''
     syllables = pinyin_str.strip().split()
-    initials = []
+    initials: List[str] = []
     for s in syllables:
         s = s.lower()
-        for i, ch in enumerate(s):
+        for ch in s:
             if ch.isalpha():
                 initials.append(ch)
                 break
     return ''.join(initials)
 
 
-def pinyin_normalize(pinyin_str):
+def pinyin_normalize(pinyin_str: Optional[str]) -> str:
     """Normalize pinyin input for fault-tolerant search.
     Maps common alternative spellings:
       - nv <-> lv (both map to nv for matching)
@@ -84,17 +87,14 @@ def pinyin_normalize(pinyin_str):
     if not pinyin_str:
         return ''
     s = pinyin_str.lower().strip()
-    # Map lv to nv so both can find nv3/nv etc.
-    # We replace standalone 'lv' syllables with 'nv'.
-    # A simple approach: replace 'lv' with 'nv' when it appears as a syllable.
-    import re
-    def replace_lv(match):
+
+    def replace_lv(match: re.Match) -> str:
         return 'nv' + match.group(1)
     s = re.sub(r'lv(\d?)', replace_lv, s)
     return s
 
 
-def fuzzy_match_pinyin(query, pinyin_field):
+def fuzzy_match_pinyin(query: Optional[str], pinyin_field: Optional[str]) -> bool:
     """Check if query fuzzy-matches a pinyin field.
     Supports:
       - Full pinyin without tones (e.g. 'yixin' matches 'yi1 xin1')
@@ -105,17 +105,17 @@ def fuzzy_match_pinyin(query, pinyin_field):
         return False
     query = query.lower().strip()
     pinyin_field = pinyin_field.lower().strip()
-    # Remove spaces and tone digits from both for comparison
-    def strip_pinyin(p):
+
+    def strip_pinyin(p: str) -> str:
         return ''.join(ch for ch in p if ch.isalpha())
     query_stripped = strip_pinyin(query)
     field_stripped = strip_pinyin(pinyin_field)
     if not query_stripped:
         return False
-    # Check if query is a substring of the stripped pinyin
+
     if query_stripped in field_stripped:
         return True
-    # Also allow prefix match on each syllable
+
     query_syllables = query.split()
     field_syllables = pinyin_field.split()
     if len(query_syllables) <= len(field_syllables):

@@ -1,3 +1,5 @@
+from typing import Optional, List, Dict, Any
+
 from src.utils.qt_compat import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit,
     QLabel, QSplitter, QListWidget, QListWidgetItem, QPushButton,
@@ -5,6 +7,7 @@ from src.utils.qt_compat import (
     FONT_WEIGHT_BOLD, ALIGN_CENTER, WORD_UNDER_CURSOR,
     QAction, QMenu, QClipboard, QApplication, QMessageBox,
     QTimer, QProgressBar, MSG_ICON_INFORMATION, MSG_ACTION_ROLE, MSG_ACCEPT_ROLE,
+    QKeySequence, QShortcut,
 )
 from src.ui.search_bar import SearchBar
 from src.utils.font import get_font, get_css_font_family
@@ -15,18 +18,18 @@ class SearchResultView(QTextEdit):
     toggle_favorite = pyqtSignal(int)
     copy_requested = pyqtSignal(str, str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setReadOnly(True)
         self.setFont(get_font(11))
         self._update_style(False)
         self.setPlaceholderText("输入词汇进行查询...")
-        self.current_word_id = None
+        self.current_word_id: Optional[int] = None
         self._word = ""
         self._pinyin = ""
         self._definition = ""
 
-    def _update_style(self, is_dark):
+    def _update_style(self, is_dark: bool) -> None:
         if is_dark:
             self.setStyleSheet("""
                 QTextEdit {
@@ -48,12 +51,12 @@ class SearchResultView(QTextEdit):
                 }
             """)
 
-    def set_content(self, word, pinyin, definition):
+    def set_content(self, word: str, pinyin: str, definition: str) -> None:
         self._word = word or ""
         self._pinyin = pinyin or ""
         self._definition = definition or ""
 
-    def contextMenuEvent(self, event):
+    def contextMenuEvent(self, event) -> None:
         menu = self.createStandardContextMenu()
         menu.addSeparator()
 
@@ -71,7 +74,7 @@ class SearchResultView(QTextEdit):
 
         menu.exec(event.globalPos())
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event) -> None:
         try:
             cursor = self.cursorForPosition(event.pos())
             cursor.select(WORD_UNDER_CURSOR)
@@ -88,7 +91,7 @@ class SearchResultView(QTextEdit):
 class FavoriteListWidget(QWidget):
     item_clicked = pyqtSignal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -118,25 +121,25 @@ class FavoriteListWidget(QWidget):
         self.list_widget.itemDoubleClicked.connect(self._on_item_clicked)
         layout.addWidget(self.list_widget)
 
-    def _on_item_clicked(self, item):
+    def _on_item_clicked(self, item: QListWidgetItem) -> None:
         self.item_clicked.emit(item.text())
 
-    def add_item(self, word):
+    def add_item(self, word: str) -> None:
         for i in range(self.list_widget.count()):
             if self.list_widget.item(i).text() == word:
                 return
         self.list_widget.addItem(word)
 
-    def clear(self):
+    def clear(self) -> None:
         self.list_widget.clear()
 
-    def get_items(self):
+    def get_items(self) -> List[str]:
         return [self.list_widget.item(i).text() for i in range(self.list_widget.count())]
 
-    def set_title(self, title):
+    def set_title(self, title: str) -> None:
         self.title_label.setText(title)
 
-    def update_theme(self, theme_manager):
+    def update_theme(self, theme_manager: ThemeManager) -> None:
         if theme_manager.is_dark():
             self.title_label.setStyleSheet(
                 "padding: 8px; background-color: #3c3c3c; border-radius: 4px; color: #e0e0e0;"
@@ -182,7 +185,7 @@ class FavoriteListWidget(QWidget):
 class HistoryListWidget(QWidget):
     item_clicked = pyqtSignal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -212,19 +215,19 @@ class HistoryListWidget(QWidget):
         self.list_widget.itemDoubleClicked.connect(self._on_item_clicked)
         layout.addWidget(self.list_widget)
 
-    def _on_item_clicked(self, item):
+    def _on_item_clicked(self, item: QListWidgetItem) -> None:
         self.item_clicked.emit(item.text())
 
-    def add_item(self, word):
+    def add_item(self, word: str) -> None:
         for i in range(self.list_widget.count()):
             if self.list_widget.item(i).text() == word:
                 return
         self.list_widget.insertItem(0, word)
 
-    def clear(self):
+    def clear(self) -> None:
         self.list_widget.clear()
 
-    def update_theme(self, theme_manager):
+    def update_theme(self, theme_manager: ThemeManager) -> None:
         if theme_manager.is_dark():
             self.title_label.setStyleSheet(
                 "padding: 8px; background-color: #3c3c3c; border-radius: 4px; color: #e0e0e0;"
@@ -275,8 +278,10 @@ class MainWindow(QMainWindow):
     word_book_toggle_requested = pyqtSignal(int)
     export_requested = pyqtSignal()
     print_requested = pyqtSignal()
+    backup_requested = pyqtSignal()
+    restore_requested = pyqtSignal()
 
-    def __init__(self, theme_manager=None):
+    def __init__(self, theme_manager: Optional[ThemeManager] = None):
         super().__init__()
         self.theme_manager = theme_manager or ThemeManager()
         self.theme_manager.add_listener(self._on_theme_changed)
@@ -290,6 +295,7 @@ class MainWindow(QMainWindow):
         """)
 
         self._build_menu_bar()
+        self._setup_shortcuts()
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -474,12 +480,12 @@ class MainWindow(QMainWindow):
         self._current_pinyin = ""
         self._current_definition = ""
         self._current_definition_cn = ""
-        self._current_examples = None
-        self._current_frequency = None
-        self._current_hsk_level = None
-        self._current_discrimination = None
+        self._current_examples: Optional[str] = None
+        self._current_frequency: Optional[str] = None
+        self._current_hsk_level: Optional[int] = None
+        self._current_discrimination: Optional[str] = None
 
-    def _build_menu_bar(self):
+    def _build_menu_bar(self) -> None:
         menubar = self.menuBar()
 
         view_menu = menubar.addMenu("视图")
@@ -497,79 +503,153 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
 
         increase_font_action = QAction("增大字体", self)
+        increase_font_action.setShortcut(QKeySequence("Ctrl++"))
         increase_font_action.triggered.connect(self._increase_font)
         view_menu.addAction(increase_font_action)
 
         decrease_font_action = QAction("减小字体", self)
+        decrease_font_action.setShortcut(QKeySequence("Ctrl+-"))
         decrease_font_action.triggered.connect(self._decrease_font)
         view_menu.addAction(decrease_font_action)
 
         edit_menu = menubar.addMenu("编辑")
 
         copy_word_action = QAction("复制词语", self)
+        copy_word_action.setShortcut(QKeySequence("Ctrl+Shift+W"))
         copy_word_action.triggered.connect(lambda: self._copy_field("word"))
         edit_menu.addAction(copy_word_action)
 
         copy_pinyin_action = QAction("复制拼音", self)
+        copy_pinyin_action.setShortcut(QKeySequence("Ctrl+Shift+P"))
         copy_pinyin_action.triggered.connect(lambda: self._copy_field("pinyin"))
         edit_menu.addAction(copy_pinyin_action)
 
         copy_def_action = QAction("复制释义", self)
+        copy_def_action.setShortcut(QKeySequence("Ctrl+Shift+D"))
         copy_def_action.triggered.connect(lambda: self._copy_field("definition"))
         edit_menu.addAction(copy_def_action)
 
         file_menu = menubar.addMenu("文件")
 
         export_action = QAction("导出...", self)
+        export_action.setShortcut(QKeySequence("Ctrl+E"))
         export_action.triggered.connect(self.export_requested.emit)
         file_menu.addAction(export_action)
 
         print_action = QAction("打印...", self)
+        print_action.setShortcut(QKeySequence("Ctrl+P"))
         print_action.triggered.connect(self.print_requested.emit)
         file_menu.addAction(print_action)
 
         file_menu.addSeparator()
 
+        backup_action = QAction("备份学习数据...", self)
+        backup_action.setShortcut(QKeySequence("Ctrl+B"))
+        backup_action.triggered.connect(self.backup_requested.emit)
+        file_menu.addAction(backup_action)
+
+        restore_action = QAction("恢复学习数据...", self)
+        restore_action.setShortcut(QKeySequence("Ctrl+R"))
+        restore_action.triggered.connect(self.restore_requested.emit)
+        file_menu.addAction(restore_action)
+
+        file_menu.addSeparator()
+
         share_action = QAction("分享当前词语", self)
+        share_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
         share_action.triggered.connect(self._share_current_word)
         file_menu.addAction(share_action)
 
         learn_menu = menubar.addMenu("学习")
 
         daily_word_action = QAction("每日一词", self)
+        daily_word_action.setShortcut(QKeySequence("Ctrl+D"))
         daily_word_action.triggered.connect(self.daily_word_requested.emit)
         learn_menu.addAction(daily_word_action)
 
         quiz_action = QAction("测验模式", self)
+        quiz_action.setShortcut(QKeySequence("Ctrl+Q"))
         quiz_action.triggered.connect(self.quiz_requested.emit)
         learn_menu.addAction(quiz_action)
 
         review_action = QAction("复习", self)
+        review_action.setShortcut(QKeySequence("Ctrl+Shift+R"))
         review_action.triggered.connect(self.review_requested.emit)
         learn_menu.addAction(review_action)
 
-    def _toggle_theme(self):
+    def _setup_shortcuts(self) -> None:
+        """Setup global keyboard shortcuts."""
+        # Ctrl+F - Focus search
+        self.search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        self.search_shortcut.activated.connect(self.search_bar.focus_search)
+
+        # Esc - Clear search
+        self.esc_shortcut = QShortcut(QKeySequence("Esc"), self)
+        self.esc_shortcut.activated.connect(self._on_esc_pressed)
+
+        # Ctrl+S - Toggle favorite
+        self.fav_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.fav_shortcut.activated.connect(self._toggle_favorite_shortcut)
+
+        # Ctrl+T - Toggle theme
+        self.theme_shortcut = QShortcut(QKeySequence("Ctrl+T"), self)
+        self.theme_shortcut.activated.connect(self._toggle_theme)
+
+        # Ctrl+Shift+C - Copy all
+        self.copy_all_shortcut = QShortcut(QKeySequence("Ctrl+Shift+C"), self)
+        self.copy_all_shortcut.activated.connect(self._copy_all)
+
+    def _on_esc_pressed(self) -> None:
+        """Handle Esc key - clear search if focused, otherwise clear result."""
+        if self.search_bar.search_input.hasFocus():
+            self.search_bar.clear()
+        else:
+            self.clear_result()
+
+    def _toggle_favorite_shortcut(self) -> None:
+        """Toggle favorite for current word via shortcut."""
+        word_id = getattr(self, '_current_word_id', None)
+        if word_id is not None:
+            self.search_result_view.toggle_favorite.emit(word_id)
+
+    def _copy_all(self) -> None:
+        """Copy all current word info to clipboard."""
+        if not self._current_word:
+            return
+        parts = []
+        parts.append(f"词语：{self._current_word}")
+        if self._current_pinyin:
+            parts.append(f"拼音：{self._current_pinyin}")
+        if self._current_definition_cn:
+            parts.append(f"中文释义：{self._current_definition_cn}")
+        if self._current_definition:
+            parts.append(f"英文释义：{self._current_definition}")
+        clipboard = QApplication.clipboard()
+        clipboard.setText("\n".join(parts))
+        self._show_toast("已复制全部信息")
+
+    def _toggle_theme(self) -> None:
         self.theme_manager.toggle_theme()
 
-    def _toggle_pinyin(self):
+    def _toggle_pinyin(self) -> None:
         self.theme_manager.pinyin_visible = not self.theme_manager.pinyin_visible
         self.pinyin_toggle_btn.setText("显示拼音" if not self.theme_manager.pinyin_visible else "隐藏拼音")
         self.pinyin_action.setChecked(self.theme_manager.pinyin_visible)
         self.refresh_display()
 
-    def _toggle_pinyin_from_menu(self, checked):
+    def _toggle_pinyin_from_menu(self, checked: bool) -> None:
         self.theme_manager.pinyin_visible = checked
         self.pinyin_toggle_btn.setText("显示拼音" if not checked else "隐藏拼音")
         self.pinyin_toggle_btn.setChecked(not checked)
         self.refresh_display()
 
-    def _increase_font(self):
+    def _increase_font(self) -> None:
         self.font_control.slider.setValue(self.font_control.slider.value() + 1)
 
-    def _decrease_font(self):
+    def _decrease_font(self) -> None:
         self.font_control.slider.setValue(self.font_control.slider.value() - 1)
 
-    def _on_theme_changed(self):
+    def _on_theme_changed(self) -> None:
         is_dark = self.theme_manager.is_dark()
         self.theme_btn.setText("浅色模式" if is_dark else "深色模式")
         self.theme_btn.setChecked(is_dark)
@@ -589,7 +669,7 @@ class MainWindow(QMainWindow):
         self._update_all_fonts()
         self.refresh_display()
 
-    def _update_all_fonts(self):
+    def _update_all_fonts(self) -> None:
         tm = self.theme_manager
         self.setFont(get_font(tm.get_font_size(11)))
         self.search_bar.search_input.setFont(get_font(tm.get_font_size(12)))
@@ -605,7 +685,7 @@ class MainWindow(QMainWindow):
         self.share_btn.setFont(get_font(tm.get_font_size(10)))
         self.search_result_view.setFont(get_font(tm.get_font_size(11)))
 
-    def show_daily_word(self, word_data):
+    def show_daily_word(self, word_data: Optional[Dict[str, Any]]) -> None:
         if not word_data:
             QMessageBox.information(self, "每日一词", "暂无每日词汇")
             return
@@ -618,7 +698,7 @@ class MainWindow(QMainWindow):
             f"<p>{definition}</p>"
         )
 
-    def show_review_list(self, words):
+    def show_review_list(self, words: List[Dict[str, Any]]) -> None:
         if not words:
             QMessageBox.information(self, "复习", "暂无待复习的单词")
             return
@@ -626,7 +706,7 @@ class MainWindow(QMainWindow):
         text = "<h3>待复习单词:</h3><ul>" + "".join(f"<li>{i}</li>" for i in items) + "</ul>"
         QMessageBox.information(self, "复习", text)
 
-    def _search_bar_qss(self):
+    def _search_bar_qss(self) -> str:
         if self.theme_manager.is_dark():
             return """
                 QLineEdit {
@@ -697,7 +777,7 @@ class MainWindow(QMainWindow):
             }
         """
 
-    def _result_view_qss(self):
+    def _result_view_qss(self) -> str:
         bg = self.theme_manager.get_result_bg()
         border = self.theme_manager.get_border_color()
         return f"""
@@ -709,7 +789,7 @@ class MainWindow(QMainWindow):
             }}
         """
 
-    def refresh_display(self):
+    def refresh_display(self) -> None:
         if self._current_word:
             self.display_result(
                 self._current_word,
@@ -724,7 +804,10 @@ class MainWindow(QMainWindow):
                 getattr(self, '_current_discrimination', None),
             )
 
-    def display_result(self, word, pinyin, definition, definition_cn, word_id, is_favorite=False, examples=None, frequency=None, hsk_level=None, discrimination=None):
+    def display_result(self, word: str, pinyin: str, definition: str, definition_cn: str,
+                       word_id: Optional[int], is_favorite: bool = False,
+                       examples: Optional[str] = None, frequency: Optional[str] = None,
+                       hsk_level: Optional[int] = None, discrimination: Optional[str] = None) -> None:
         self._current_word = word or ""
         self._current_pinyin = pinyin or ""
         self._current_definition = definition or ""
@@ -835,7 +918,7 @@ class MainWindow(QMainWindow):
         self.search_result_view.current_word_id = word_id
         self.search_result_view.setHtml(html)
 
-    def display_no_result(self, word):
+    def display_no_result(self, word: str) -> None:
         safe_word = word or ""
         css_font = get_css_font_family()
         tm = self.theme_manager
@@ -862,7 +945,7 @@ class MainWindow(QMainWindow):
         self._current_discrimination = None
         self.search_result_view.set_content("", "", "")
 
-    def clear_result(self):
+    def clear_result(self) -> None:
         self.search_result_view.current_word_id = None
         self.search_result_view.clear()
         self._current_word = ""
@@ -875,7 +958,7 @@ class MainWindow(QMainWindow):
         self._current_discrimination = None
         self.search_result_view.set_content("", "", "")
 
-    def _copy_field(self, field):
+    def _copy_field(self, field: str) -> None:
         text = ""
         if field == "word":
             text = self._current_word
@@ -892,12 +975,12 @@ class MainWindow(QMainWindow):
             clipboard = QApplication.clipboard()
             clipboard.setText(text)
 
-    def _on_copy_requested(self, field, text):
+    def _on_copy_requested(self, field: str, text: str) -> None:
         if text:
             clipboard = QApplication.clipboard()
             clipboard.setText(text)
 
-    def _share_current_word(self):
+    def _share_current_word(self) -> None:
         word = self._current_word
         if not word:
             QMessageBox.information(self, "分享", "请先查询一个词语")
@@ -910,7 +993,7 @@ class MainWindow(QMainWindow):
         clipboard.setText(share_text)
         self._show_toast("已复制到剪贴板，可直接粘贴分享")
 
-    def _show_toast(self, message, duration=2000):
+    def _show_toast(self, message: str, duration: int = 2000) -> None:
         toast = QLabel(message, self)
         toast.setFont(get_font(11))
         toast.setStyleSheet("""
@@ -928,13 +1011,13 @@ class MainWindow(QMainWindow):
         toast.show()
         QTimer.singleShot(duration, toast.close)
 
-    def set_loading(self, loading):
+    def set_loading(self, loading: bool) -> None:
         if loading:
             self.loading_bar.show()
         else:
             self.loading_bar.hide()
 
-    def show_update_notification(self, remote_version, info=""):
+    def show_update_notification(self, remote_version: str, info: str = "") -> None:
         msg = QMessageBox(self)
         msg.setWindowTitle("发现新版本")
         msg.setText(f"检测到新版本 v{remote_version}，当前版本较旧。")

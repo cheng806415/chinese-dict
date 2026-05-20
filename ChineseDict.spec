@@ -21,7 +21,15 @@ excludes = [
     'PyQt6.QtPrintSupport', 'PyQt6.QtSpellChecker', 'PyQt6.QtScxml',
     'PyQt6.QtUiTools', 'PyQt6.QtWebSockets', 'PyQt6.QtXmlPatterns',
     'pygame', 'numpy', 'pandas', 'matplotlib', 'scipy', 'PIL',
-    'tkinter', 'unittest', 'xmlrunner', 'pytest',
+    'tkinter', 'unittest', 'xmlrunner', 'pytest', 'pydoc', 'doctest',
+    'bdb', 'pdb', 'tabnanny', 'turtledemo', 'idlelib',
+    'multiprocessing.popen_spawn_win32', 'multiprocessing.popen_fork',
+    'multiprocessing.popen_forkserver', 'multiprocessing.popen_spawn_posix',
+    'distutils', 'setuptools', 'pkg_resources', 'pip', 'wheel',
+    'concurrent.futures.process', 'asyncio.windows_events',
+    'asyncio.windows_utils', 'test', 'tests', '_testcapi',
+    'lib2to3', 'formatter', 'msilib', 'ossaudiodev', 'spwd',
+    'sunau', 'telnetlib', 'uu', 'xdrlib', 'zipapp',
 ]
 
 a = Analysis(

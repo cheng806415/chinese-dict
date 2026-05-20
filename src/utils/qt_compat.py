@@ -10,7 +10,7 @@ if USE_PYQT5:
         QAction, QMenu, QMenuBar, QSlider, QToolBar, QStatusBar,
         QDialog, QFileDialog, QDialogButtonBox, QComboBox, QCheckBox,
         QGroupBox, QFormLayout, QGridLayout, QProgressDialog,
-        QPrintDialog, QProgressBar,
+        QPrintDialog, QProgressBar, QShortcut,
     )
     from PyQt5.QtCore import Qt, pyqtSignal, QTimer
     from PyQt5.QtGui import QFont, QKeySequence, QTextCursor, QPalette, QColor, QClipboard
@@ -36,7 +36,7 @@ else:
         QMenu, QMenuBar, QSlider, QToolBar, QStatusBar,
         QDialog, QFileDialog, QDialogButtonBox, QComboBox, QCheckBox,
         QGroupBox, QFormLayout, QGridLayout, QProgressDialog,
-        QProgressBar,
+        QProgressBar, QShortcut,
     )
     from PyQt6.QtGui import QAction, QFont, QKeySequence, QTextCursor, QPalette, QColor, QClipboard
     from PyQt6.QtCore import Qt, pyqtSignal, QTimer

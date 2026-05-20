@@ -2,13 +2,18 @@ import sys
 import os
 import traceback
 import datetime
+import json
+from typing import Optional
 
 if getattr(sys, 'frozen', False):
     base_path = os.path.dirname(sys.executable)
 else:
     base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-from src.utils.qt_compat import QApplication, QMessageBox, QFont, MSG_ICON_CRITICAL, QTimer, MSG_ACTION_ROLE, MSG_ACCEPT_ROLE
+from src.utils.qt_compat import (
+    QApplication, QMessageBox, QFont, MSG_ICON_CRITICAL, QTimer,
+    MSG_ACTION_ROLE, MSG_ACCEPT_ROLE, QFileDialog
+)
 
 from src.database.db_manager import DatabaseManager, get_db_path
 from src.database.importer import import_data
@@ -19,7 +24,7 @@ from src.utils.theme import ThemeManager
 from src.utils.helpers import get_version, get_crash_log_dir, get_platform_info
 
 
-def _write_crash_log(error_msg):
+def _write_crash_log(error_msg: str) -> Optional[str]:
     try:
         crash_dir = get_crash_log_dir()
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -36,7 +41,7 @@ def _write_crash_log(error_msg):
         return None
 
 
-def _show_crash_dialog(error_msg, crash_file=None):
+def _show_crash_dialog(error_msg: str, crash_file: Optional[str] = None) -> None:
     try:
         msg = QMessageBox()
         msg.setIcon(MSG_ICON_CRITICAL)
@@ -47,7 +52,7 @@ def _show_crash_dialog(error_msg, crash_file=None):
             detailed += f"\n\n崩溃日志已保存到:\n{crash_file}"
         msg.setDetailedText(detailed)
         copy_btn = msg.addButton("复制错误信息", MSG_ACTION_ROLE)
-        ok_btn = msg.addButton("确定", MSG_ACCEPT_ROLE)
+        msg.addButton("确定", MSG_ACCEPT_ROLE)
         msg.exec()
         if msg.clickedButton() == copy_btn:
             from src.utils.qt_compat import QClipboard, QApplication
@@ -57,7 +62,7 @@ def _show_crash_dialog(error_msg, crash_file=None):
         pass
 
 
-def global_exception_handler(exc_type, exc_value, exc_tb):
+def global_exception_handler(exc_type, exc_value, exc_tb) -> None:
     error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
     print(f"Unhandled exception:\n{error_msg}")
     crash_file = _write_crash_log(error_msg)
@@ -70,9 +75,10 @@ class DictionaryApp:
         self.app.setApplicationName("现代汉语词典")
         self.app.setStyle("Fusion")
 
-        self.db = None
-        self.main_window = None
+        self.db: Optional[DatabaseManager] = None
+        self.main_window: Optional[MainWindow] = None
         self.theme_manager = ThemeManager(self.app)
+        self.export_manager: Optional[ExportManager] = None
 
         if sys.platform == 'darwin':
             self.app.setFont(QFont("PingFang SC", 13))
@@ -81,7 +87,7 @@ class DictionaryApp:
         else:
             self.app.setFont(QFont("Noto Sans CJK SC", 10))
 
-    def initialize_database(self):
+    def initialize_database(self) -> None:
         db_path = import_data()
         self.db = DatabaseManager(db_path)
         self._load_settings()
@@ -92,7 +98,7 @@ class DictionaryApp:
         self.main_window.set_loading(False)
         self._check_update()
 
-    def _load_settings(self):
+    def _load_settings(self) -> None:
         try:
             theme = self.db.get_setting("theme", "light")
             if theme == "dark":
@@ -107,7 +113,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error loading settings: {e}")
 
-    def _save_settings(self):
+    def _save_settings(self) -> None:
         try:
             self.db.set_setting("theme", self.theme_manager.current_theme)
             self.db.set_setting("font_size_offset", str(self.theme_manager.font_size_offset))
@@ -115,7 +121,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error saving settings: {e}")
 
-    def _setup_main_window_connections(self):
+    def _setup_main_window_connections(self) -> None:
         self.main_window.search_requested.connect(self.on_search)
         self.main_window.search_bar.set_suggestions_callback(self.get_suggestions)
         self.main_window.search_result_view.toggle_favorite.connect(self.on_toggle_favorite)
@@ -125,8 +131,10 @@ class DictionaryApp:
         self.main_window.word_book_toggle_requested.connect(self.on_toggle_word_book)
         self.main_window.export_requested.connect(self.on_export)
         self.main_window.print_requested.connect(self.on_print)
+        self.main_window.backup_requested.connect(self.on_backup)
+        self.main_window.restore_requested.connect(self.on_restore)
 
-    def _delayed_init(self):
+    def _delayed_init(self) -> None:
         self.main_window.set_loading(True)
         try:
             self.initialize_database()
@@ -136,7 +144,7 @@ class DictionaryApp:
             crash_file = _write_crash_log(error_msg)
             _show_crash_dialog(error_msg, crash_file)
 
-    def _check_update(self):
+    def _check_update(self) -> None:
         try:
             result = self.db.update_check()
             if result.get('has_update'):
@@ -147,7 +155,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Update check error: {e}")
 
-    def load_favorites(self):
+    def load_favorites(self) -> None:
         try:
             favorites = self.db.get_favorites()
             for fav in favorites:
@@ -155,7 +163,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error loading favorites: {e}")
 
-    def load_history(self):
+    def load_history(self) -> None:
         try:
             history = self.db.get_search_history()
             for word in history:
@@ -163,7 +171,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error loading history: {e}")
 
-    def load_word_book(self):
+    def load_word_book(self) -> None:
         try:
             words = self.db.get_word_book_words()
             for w in words:
@@ -171,7 +179,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error loading word book: {e}")
 
-    def on_search(self, word):
+    def on_search(self, word: str) -> None:
         if not word:
             return
 
@@ -204,7 +212,7 @@ class DictionaryApp:
             except Exception:
                 pass
 
-    def on_toggle_favorite(self, word_id):
+    def on_toggle_favorite(self, word_id: int) -> None:
         try:
             if self.db.is_favorite(word_id):
                 self.db.remove_favorite(word_id)
@@ -219,7 +227,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error toggling favorite: {e}")
 
-    def on_search_history_add(self, word):
+    def on_search_history_add(self, word: str) -> None:
         if word:
             try:
                 self.db.add_search_history(word)
@@ -227,7 +235,7 @@ class DictionaryApp:
             except Exception as e:
                 print(f"Error adding history: {e}")
 
-    def get_suggestions(self, prefix):
+    def get_suggestions(self, prefix: str) -> list:
         if not prefix or len(prefix) < 1:
             return []
         try:
@@ -236,7 +244,7 @@ class DictionaryApp:
             print(f"Error getting suggestions: {e}")
             return []
 
-    def on_daily_word(self):
+    def on_daily_word(self) -> None:
         try:
             word = self.db.get_daily_word()
             self.main_window.show_daily_word(word)
@@ -245,7 +253,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error getting daily word: {e}")
 
-    def on_quiz(self):
+    def on_quiz(self) -> None:
         try:
             dialog = QuizDialog(self.db, parent=self.main_window)
             dialog.quiz_finished.connect(self._on_quiz_finished)
@@ -253,14 +261,14 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error starting quiz: {e}")
 
-    def _on_quiz_finished(self, score, total):
+    def _on_quiz_finished(self, score: int, total: int) -> None:
         try:
             self.db.record_quiz_result(score, total)
             self.db.update_study_streak()
         except Exception as e:
             print(f"Error recording quiz result: {e}")
 
-    def on_review(self):
+    def on_review(self) -> None:
         try:
             words = self.db.get_due_reviews()
             self.main_window.show_review_list(words)
@@ -269,7 +277,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error getting reviews: {e}")
 
-    def on_toggle_word_book(self, word_id):
+    def on_toggle_word_book(self, word_id: int) -> None:
         try:
             if self.db.is_in_word_book(word_id):
                 self.db.remove_from_word_book(word_id)
@@ -279,7 +287,7 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error toggling word book: {e}")
 
-    def run(self):
+    def run(self) -> None:
         try:
             self.main_window = MainWindow(self.theme_manager)
             self._setup_main_window_connections()
@@ -301,13 +309,13 @@ class DictionaryApp:
             if self.db:
                 self.db.close()
 
-    def on_export(self):
+    def on_export(self) -> None:
         try:
             self.export_manager.show_export_dialog()
         except Exception as e:
             print(f"Error exporting: {e}")
 
-    def on_print(self):
+    def on_print(self) -> None:
         try:
             mw = self.main_window
             if not mw._current_word:
@@ -322,8 +330,87 @@ class DictionaryApp:
         except Exception as e:
             print(f"Error printing: {e}")
 
+    def on_backup(self) -> None:
+        """Backup learning data to a JSON file."""
+        try:
+            data = self.db.export_learning_data()
+            file_path, _ = QFileDialog.getSaveFileName(
+                self.main_window,
+                "备份学习数据",
+                f"ChineseDict_backup_{datetime.datetime.now().strftime('%Y%m%d')}.json",
+                "JSON Files (*.json);;All Files (*)"
+            )
+            if not file_path:
+                return
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            QMessageBox.information(
+                self.main_window,
+                "备份成功",
+                f"学习数据已备份到:\n{file_path}"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self.main_window,
+                "备份失败",
+                f"备份过程中出现错误:\n{str(e)}"
+            )
 
-def main():
+    def on_restore(self) -> None:
+        """Restore learning data from a JSON file."""
+        try:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self.main_window,
+                "恢复学习数据",
+                "",
+                "JSON Files (*.json);;All Files (*)"
+            )
+            if not file_path:
+                return
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # Confirm restore
+            reply = QMessageBox.question(
+                self.main_window,
+                "确认恢复",
+                "恢复学习数据将覆盖当前的学习记录（收藏、单词本、学习统计等）。\n"
+                "词典词汇数据不会受到影响。\n\n是否继续？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+            success = self.db.import_learning_data(data)
+            if success:
+                # Reload UI
+                self.main_window.favorite_widget.clear()
+                self.main_window.history_widget.clear()
+                self.main_window.word_book_widget.clear()
+                self.load_favorites()
+                self.load_history()
+                self.load_word_book()
+                QMessageBox.information(
+                    self.main_window,
+                    "恢复成功",
+                    "学习数据已成功恢复。"
+                )
+            else:
+                QMessageBox.warning(
+                    self.main_window,
+                    "恢复失败",
+                    "数据恢复失败，请检查备份文件是否有效。"
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self.main_window,
+                "恢复失败",
+                f"恢复过程中出现错误:\n{str(e)}"
+            )
+
+
+def main() -> None:
     sys.excepthook = global_exception_handler
     if getattr(sys, 'frozen', False) and sys.platform == 'darwin':
         log_dir = os.path.expanduser('~/Library/Logs')

@@ -1,8 +1,9 @@
 import os
 import sys
 import platform
+from typing import Dict, Optional
 
-def get_resource_path(relative_path):
+def get_resource_path(relative_path: str) -> str:
     if getattr(sys, 'frozen', False):
         base_path = os.path.dirname(sys.executable)
     else:
@@ -13,13 +14,13 @@ def get_resource_path(relative_path):
 _APP_VERSION = "1.0.0"
 _REMOTE_VERSION_URL = "https://api.github.com/repos/xiandaihanyucidain/ChineseDict/releases/latest"
 
-def get_version():
+def get_version() -> str:
     return _APP_VERSION
 
-def get_remote_version_url():
+def get_remote_version_url() -> str:
     return _REMOTE_VERSION_URL
 
-def get_crash_log_dir():
+def get_crash_log_dir() -> str:
     if sys.platform == 'darwin':
         log_dir = os.path.expanduser('~/Library/Logs/ChineseDict/crashes')
     else:
@@ -28,7 +29,7 @@ def get_crash_log_dir():
     os.makedirs(log_dir, exist_ok=True)
     return log_dir
 
-def get_platform_info():
+def get_platform_info() -> Dict[str, str]:
     return {
         'platform': platform.platform(),
         'system': platform.system(),
@@ -38,10 +39,10 @@ def get_platform_info():
         'processor': platform.processor(),
         'python_version': sys.version,
         'python_executable': sys.executable,
-        'frozen': getattr(sys, 'frozen', False),
+        'frozen': str(getattr(sys, 'frozen', False)),
     }
 
-def format_definition(definition):
+def format_definition(definition: str) -> str:
     parts = definition.split('/')
     formatted = []
     for i, part in enumerate(parts, 1):
