@@ -91,7 +91,6 @@ class DictionaryApp:
         db_path = import_data()
         self.db = DatabaseManager(db_path)
         self._load_settings()
-        self._setup_main_window_connections()
         self.load_favorites()
         self.load_history()
         self.load_word_book()
