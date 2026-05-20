@@ -83,10 +83,16 @@ jobs:
       - name: Create DMG
         run: |
           cd dist
+          # Clean up any previous DMG or mounted volumes
+          rm -f ChineseDict-macOS-ARM64.dmg
+          hdiutil detach /Volumes/ChineseDict 2>/dev/null || true
           mkdir -p dmg_temp
           cp -R ChineseDict.app dmg_temp/
           ln -sf /Applications dmg_temp/Applications
+          # Use a unique filename to avoid conflicts
           hdiutil create -volname "ChineseDict" -srcfolder dmg_temp -ov -format UDZO ChineseDict-macOS-ARM64.dmg
+          # Clean up temp folder
+          rm -rf dmg_temp
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
