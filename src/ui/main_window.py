@@ -295,7 +295,6 @@ class MainWindow(QMainWindow):
         """)
 
         self._build_menu_bar()
-        self._setup_shortcuts()
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -470,6 +469,8 @@ class MainWindow(QMainWindow):
         self.splitter.setSizes([650, 250])
 
         main_layout.addWidget(self.splitter, stretch=1)
+
+        self._setup_shortcuts()
 
         self.favorite_widget.item_clicked.connect(self.search_requested.emit)
         self.history_widget.item_clicked.connect(self.search_requested.emit)
